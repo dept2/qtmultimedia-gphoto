@@ -63,14 +63,15 @@ void GPhotoCameraSession::setState(QCamera::State state)
         } else if (state == QCamera::ActiveState) {
             startViewFinder();
             m_state = state;
-        } else if (previousState == QCamera::ActiveState) {
-            if (state == QCamera::UnloadedState) {
-                stopViewFinder();
-                closeCamera();
-                m_state = state;
-            } else if (state == QCamera::LoadedState) {
-                stopViewFinder();
-            }
+        }
+    } else if (previousState == QCamera::ActiveState) {
+        if (state == QCamera::UnloadedState) {
+            stopViewFinder();
+            closeCamera();
+            m_state = state;
+        } else if (state == QCamera::LoadedState) {
+            stopViewFinder();
+            m_state = state;
         }
     }
 
@@ -287,6 +288,11 @@ void GPhotoCameraSession::closeCamera()
     emit statusChanged(m_status);
     emit readyForCaptureChanged(isReadyForCapture());
 
+    // Stop working thread
+    m_workerThread->quit();
+    m_workerThread->wait();
+
+    // Close GPhoto camera session
     int ret = gp_camera_exit(m_camera, m_context);
     if (ret != GP_OK) {
         m_status = QCamera::LoadedStatus;
@@ -334,13 +340,12 @@ void GPhotoCameraSession::stopViewFinder()
 {
     m_status = QCamera::StoppingStatus;
     emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
-
-    m_workerThread->quit();
-    m_workerThread->wait();
 
     m_surfaceMutex.lock();
     if (m_surface)
         m_surface->stop();
     m_surfaceMutex.unlock();
+
+    m_status = QCamera::LoadedStatus;
+    emit statusChanged(m_status);
 }
