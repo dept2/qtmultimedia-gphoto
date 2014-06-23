@@ -7,7 +7,7 @@ CONFIG   += plugin
 PLUGIN_TYPE=mediaservice
 PLUGIN_CLASS_NAME=GPhotoServicePlugin
 
-DESTDIR = $$[QT_INSTALL_PLUGINS]/mediaservice
+#DESTDIR = $$[QT_INSTALL_PLUGINS]/mediaservice
 
 SOURCES += gphotoserviceplugin.cpp \
     gphotomediaservice.cpp \
@@ -28,5 +28,5 @@ HEADERS += gphotoserviceplugin.h \
 OTHER_FILES += gphoto.json
 LIBS += -lgphoto2
 
-target.path = $$[QT_INSTALL_PREFIX]/plugins/mediaservice
+target.path = $$[QT_INSTALL_PLUGINS]/plugins/mediaservice
 INSTALLS += target
