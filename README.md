@@ -1,7 +1,7 @@
 # QtMultimedia GPhoto plugin
 This plugin adds support for Qt Multimedia classes working with camera (QCamera or QML Camera item) to access the generic photo cameras supported by [gphoto2 library](http://www.gphoto.org/).
 
-Plugin surely must be considered experimental and supports only the basic gphoto2 functionality. It was tested on Ubuntu 13.10 and Qt 5.3 with Canon EOS 550D mirrored camera and proved itself to work nicely for a two-day proof-of-concept. I expect every camera [supporting image capture and liveview functionality](http://www.gphoto.org/proj/libgphoto2/support.php) via gphoto2 library to work.
+Plugin surely must be considered experimental and supports only the basic gphoto2 functionality. It was tested on Ubuntu 13.10 and Qt 5.3 with Canon EOS 550D DSLR camera and proved itself to work nicely for a two-day proof-of-concept. I expect every camera [supporting image capture and liveview functionality](http://www.gphoto.org/proj/libgphoto2/support.php) via gphoto2 library to work.
 
 The code was mainly inspired by QNX/BlackBerry QtMultimedia plugin contained in Qt sources.
 
