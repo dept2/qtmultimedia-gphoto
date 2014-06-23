@@ -12,7 +12,7 @@ GPhotoCameraSession::GPhotoCameraSession(QObject *parent)
     , m_state(QCamera::UnloadedState)
     , m_status(QCamera::UnloadedStatus)
     , m_captureMode(QCamera::CaptureStillImage)
-    , m_captureDestination(QCameraImageCapture::CaptureToBuffer)
+    , m_captureDestination(QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile)
     , m_surface(0)
     , m_camera(0)
     , m_worker(0)
@@ -208,11 +208,29 @@ void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData,
     if (m_captureDestination & QCameraImageCapture::CaptureToFile) {
         QString actualFileName(fileName);
         if (actualFileName.isEmpty()) {
-            actualFileName = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+            QString dir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+            if (dir.isEmpty()) {
+                emit imageCaptureError(id, QCameraImageCapture::ResourceError,
+                                       tr("Could not determine writable location for saving captured image"));
+                return;
+            }
 
-            actualFileName += "/IMG_0000.jpg";
+            dir += "/DCIM%1.jpg";
+            // Trying to find free filename
+            for (int i = 0; i < 9999; ++i) {
+                QString f = dir.arg(i, 4, 10, QChar('0'));
+                if (!QFile(f).exists()) {
+                    actualFileName = f;
+                    break;
+                }
+            }
+
+            if (actualFileName.isEmpty()) {
+                emit imageCaptureError(id, QCameraImageCapture::ResourceError,
+                                       tr("Could not determine writable location for saving captured image"));
+                return;
+            }
         }
-        qDebug() << "File name to save:" << actualFileName;
 
         QFile file(actualFileName);
         if (file.open(QFile::WriteOnly)) {
@@ -267,6 +285,7 @@ bool GPhotoCameraSession::openCamera()
 
     m_worker = new GPhotoCameraWorker(m_context, m_camera);
     connect(m_worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
+    connect(m_worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
     connect(m_worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
     m_workerThread->start();
     m_worker->moveToThread(m_workerThread);
@@ -291,6 +310,7 @@ void GPhotoCameraSession::closeCamera()
     // Stop working thread
     m_workerThread->quit();
     m_workerThread->wait();
+    delete m_worker;
 
     // Close GPhoto camera session
     int ret = gp_camera_exit(m_camera, m_context);
