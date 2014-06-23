@@ -28,5 +28,5 @@ HEADERS += gphotoserviceplugin.h \
 OTHER_FILES += gphoto.json
 LIBS += -lgphoto2
 
-target.path = $$[QT_INSTALL_PLUGINS]/plugins/mediaservice
+target.path = $$[QT_INSTALL_PLUGINS]/mediaservice
 INSTALLS += target
