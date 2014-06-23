@@ -4,6 +4,7 @@
 #include "gphotovideorenderercontrol.h"
 #include "gphotocameraimagecapturecontrol.h"
 #include "gphotocameracapturedestinationcontrol.h"
+#include "gphotovideoprobecontrol.h"
 
 
 GPhotoMediaService::GPhotoMediaService(QObject *parent)
@@ -13,6 +14,7 @@ GPhotoMediaService::GPhotoMediaService(QObject *parent)
     , m_videoRendererControl(new GPhotoVideoRendererControl(m_session, this))
     , m_imageCaptureControl(new GPhotoCameraImageCaptureControl(m_session, this))
     , m_destinationControl(new GPhotoCameraCaptureDestinationControl(m_session, this))
+    , m_videoProbeControl(new GPhotoVideoProbeControl(m_session, this))
 {
 }
 
@@ -26,6 +28,8 @@ QMediaControl *GPhotoMediaService::requestControl(const char *name)
         return m_imageCaptureControl;
     else if (qstrcmp(name, QCameraCaptureDestinationControl_iid) == 0)
         return m_destinationControl;
+    else if (qstrcmp(name, QMediaVideoProbeControl_iid) == 0)
+        return m_videoProbeControl;
 
     qWarning("gphoto control %s not implemented yet", name);
     return 0;

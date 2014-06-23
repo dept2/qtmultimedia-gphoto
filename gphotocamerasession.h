@@ -61,6 +61,9 @@ signals:
     void imageSaved(int id, const QString &fileName);
     void imageCaptureError(int id, int error, const QString &errorString);
 
+    // video probe control
+    void videoFrameProbed(const QVideoFrame& frame);
+
 private slots:
     void previewCaptured(const QImage& image);
     void imageDataCaptured(int id, const QByteArray& imageData, const QString& fileName);

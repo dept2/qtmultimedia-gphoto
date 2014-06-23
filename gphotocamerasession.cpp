@@ -177,6 +177,7 @@ void GPhotoCameraSession::previewCaptured(const QImage &image)
 
         QVideoFrame frame(image);
         m_surface->present(frame);
+        emit videoFrameProbed(frame);
     }
 
     QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);

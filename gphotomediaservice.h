@@ -8,6 +8,7 @@ class GPhotoCameraControl;
 class GPhotoVideoRendererControl;
 class GPhotoCameraImageCaptureControl;
 class GPhotoCameraCaptureDestinationControl;
+class GPhotoVideoProbeControl;
 
 
 class GPhotoMediaService : public QMediaService
@@ -26,6 +27,7 @@ private:
     GPhotoVideoRendererControl *m_videoRendererControl;
     GPhotoCameraImageCaptureControl *m_imageCaptureControl;
     GPhotoCameraCaptureDestinationControl *m_destinationControl;
+    GPhotoVideoProbeControl *m_videoProbeControl;
 };
 
 #endif // GPHOTOMEDIASERVICE_H
