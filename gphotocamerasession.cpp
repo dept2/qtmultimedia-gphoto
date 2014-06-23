@@ -39,7 +39,6 @@ QCamera::State GPhotoCameraSession::state() const
 
 void GPhotoCameraSession::setState(QCamera::State state)
 {
-    qDebug() << "set state" << state;
     if (m_state == state)
         return;
 
@@ -102,7 +101,6 @@ QCamera::CaptureModes GPhotoCameraSession::captureMode() const
 
 void GPhotoCameraSession::setCaptureMode(QCamera::CaptureModes captureMode)
 {
-    qDebug() << "set capture mode" << captureMode;
     if (m_captureMode == captureMode)
         return;
 
@@ -248,7 +246,6 @@ void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData,
 
 bool GPhotoCameraSession::openCamera()
 {
-    qDebug() << "open camera";
     // Camera is already open
     if (m_camera)
         return true;
@@ -337,9 +334,11 @@ bool GPhotoCameraSession::startViewFinder()
     emit statusChanged(m_status);
     emit readyForCaptureChanged(isReadyForCapture());
 
+    // Capture first preview frame to detect the viewfinder size
     m_surfaceMutex.lock();
     QImage previewFrame = m_worker->capturePreviewImage();
     if (m_surface) {
+        // Decoding JPEG image from camera produces RGB32 image
         const bool ok = m_surface->start(QVideoSurfaceFormat(previewFrame.size(), QVideoFrame::Format_RGB32));
         if (!ok)
             qWarning() << "Unable to start viewfinder surface";
@@ -351,6 +350,7 @@ bool GPhotoCameraSession::startViewFinder()
     emit statusChanged(m_status);
     emit readyForCaptureChanged(isReadyForCapture());
 
+    // Show the first captured preview frame and start acquiring more of it
     previewCaptured(previewFrame);
 
     return true;

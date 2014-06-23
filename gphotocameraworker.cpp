@@ -43,7 +43,6 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 
             gp_file_get_data_and_size(file, &data, &size);
             result = QByteArray(data, size);
-            qDebug() << "Captured file of size" << size << "bytes";
             emit imageCaptured(id, result, fileName);
         }
 
@@ -57,10 +56,10 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
                 break;
             }
             else if (type == GP_EVENT_CAPTURE_COMPLETE) {
-                qDebug("Capture completed\n");
+//                qDebug("Capture completed\n");
             }
             else if (type != GP_EVENT_UNKNOWN) {
-                qDebug("Unexpected event received from camera: %d\n", (int)type);
+                qWarning("Unexpected event received from camera: %d\n", (int)type);
             }
         }
     }
