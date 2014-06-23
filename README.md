@@ -17,7 +17,7 @@ make install
 ## Usage
 After installing the plugin you may access your camera using any QtMultimedia camera app (for example, you may use camera example provided with Qt itself).
 
-Note that since most cameras doesn't support sending orientation sensor data via PTP you will need to rotate the preview and captured images yourself when using camera not in portrait orientation. You can rotate viewfinder preview using the `orientation` property supported by QML `VideoOutput` item.
+Note that since most cameras doesn't support sending orientation sensor data via PTP you will need to rotate the preview and captured images yourself when using camera in portrait orientation. You can rotate viewfinder preview using the `orientation` property supported by QML `VideoOutput` item.
 
 ## License
 [LGPL 2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)  Copyright © 2014 Boris Moiseev
