@@ -259,7 +259,7 @@ bool GPhotoCameraSession::openCamera()
     int ret = gp_camera_new(&m_camera);
     if (ret != GP_OK) {
         m_camera = 0;
-        m_status = QCamera::UnloadedStatus;
+        m_status = QCamera::UnavailableStatus;
         emit statusChanged(m_status);
         emit readyForCaptureChanged(isReadyForCapture());
 
@@ -272,7 +272,7 @@ bool GPhotoCameraSession::openCamera()
     ret = gp_camera_init(m_camera, m_context);
     if (ret != GP_OK) {
         m_camera = 0;
-        m_status = QCamera::UnloadedStatus;
+        m_status = QCamera::UnavailableStatus;
         emit statusChanged(m_status);
         emit readyForCaptureChanged(isReadyForCapture());
 
