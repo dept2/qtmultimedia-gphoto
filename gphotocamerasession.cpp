@@ -14,22 +14,30 @@ GPhotoCameraSession::GPhotoCameraSession(QObject *parent)
     , m_captureMode(QCamera::CaptureStillImage)
     , m_captureDestination(QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile)
     , m_surface(0)
-    , m_camera(0)
-    , m_worker(0)
+    , m_worker(new GPhotoCameraWorker)
     , m_workerThread(new QThread(this))
     , m_lastImageCaptureId(0)
 {
-    // Create gphoto camera context
-    m_context = gp_context_new();
-    if (!m_context)
-        m_status = QCamera::UnavailableStatus;
+    m_workerThread->start();
+    m_worker->moveToThread(m_workerThread);
+
+    connect(m_worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
+    connect(m_worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
+
+    connect(m_worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
+    connect(m_worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
+    connect(m_worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
 }
 
 GPhotoCameraSession::~GPhotoCameraSession()
 {
     if (m_status == QCamera::ActiveStatus)
         stopViewFinder();
-    closeCamera();
+
+    // Stop working thread
+    m_workerThread->quit();
+    m_workerThread->wait();
+    delete m_worker;
 }
 
 QCamera::State GPhotoCameraSession::state() const
@@ -46,36 +54,24 @@ void GPhotoCameraSession::setState(QCamera::State state)
 
     if (previousState == QCamera::UnloadedState) {
         if (state == QCamera::LoadedState) {
-            if (openCamera()) {
-                m_state = state;
-            }
+            QMetaObject::invokeMethod(m_worker, "openCamera", Qt::QueuedConnection);
         } else if (state == QCamera::ActiveState) {
-            if (openCamera()) {
-                startViewFinder();
-                m_state = state;
-            }
+            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
         }
     } else if (previousState == QCamera::LoadedState) {
         if (state == QCamera::UnloadedState) {
-            closeCamera();
-            m_state = state;
+            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::QueuedConnection);
         } else if (state == QCamera::ActiveState) {
-            startViewFinder();
-            m_state = state;
+            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
         }
     } else if (previousState == QCamera::ActiveState) {
         if (state == QCamera::UnloadedState) {
             stopViewFinder();
-            closeCamera();
-            m_state = state;
+            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::QueuedConnection);
         } else if (state == QCamera::LoadedState) {
             stopViewFinder();
-            m_state = state;
         }
     }
-
-    if (m_state != previousState)
-        emit stateChanged(m_state);
 }
 
 
@@ -155,8 +151,6 @@ QAbstractVideoSurface *GPhotoCameraSession::surface() const
 
 void GPhotoCameraSession::setSurface(QAbstractVideoSurface *surface)
 {
-    QMutexLocker locker(&m_surfaceMutex);
-
     if (m_surface == surface)
         return;
 
@@ -168,12 +162,12 @@ void GPhotoCameraSession::previewCaptured(const QImage &image)
     if (m_status != QCamera::ActiveStatus)
         return;
 
-    QMutexLocker locker(&m_surfaceMutex);
     if (m_surface) {
-        if (image.size() != m_surface->surfaceFormat().frameSize()) {
+        if (m_surface->isActive() && image.size() != m_surface->surfaceFormat().frameSize())
             m_surface->stop();
+
+        if (!m_surface->isActive())
             m_surface->start(QVideoSurfaceFormat(image.size(), QVideoFrame::Format_RGB32));
-        }
 
         QVideoFrame frame(image);
         m_surface->present(frame);
@@ -245,128 +239,35 @@ void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData,
     }
 }
 
-bool GPhotoCameraSession::openCamera()
+void GPhotoCameraSession::workerStatusChanged(QCamera::Status status)
 {
-    // Camera is already open
-    if (m_camera)
-        return true;
+    if (status != m_status) {
+        m_status = status;
 
-    m_status = QCamera::LoadingStatus;
-    emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
+        if (status == QCamera::LoadedStatus) {
+            m_state = QCamera::LoadedState;
+            emit stateChanged(m_state);
+            emit readyForCaptureChanged(isReadyForCapture());
+        } else if (status == QCamera::ActiveStatus) {
+            m_state = QCamera::ActiveState;
+            emit stateChanged(m_state);
+            emit readyForCaptureChanged(isReadyForCapture());
+        } else if (status == QCamera::UnloadedStatus || status == QCamera::UnavailableStatus) {
+            m_state = QCamera::UnloadedState;
+            emit stateChanged(m_state);
+            emit readyForCaptureChanged(isReadyForCapture());
+        }
 
-    // Create camera object
-    int ret = gp_camera_new(&m_camera);
-    if (ret != GP_OK) {
-        m_camera = 0;
-        m_status = QCamera::UnavailableStatus;
-        emit statusChanged(m_status);
-        emit readyForCaptureChanged(isReadyForCapture());
-
-        qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, tr("Unable to open camera"));
-        return false;
+        emit statusChanged(status);
     }
-
-    // Init camera object
-    ret = gp_camera_init(m_camera, m_context);
-    if (ret != GP_OK) {
-        m_camera = 0;
-        m_status = QCamera::UnavailableStatus;
-        emit statusChanged(m_status);
-        emit readyForCaptureChanged(isReadyForCapture());
-
-        qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, tr("Unable to open camera"));
-        return false;
-    }
-
-    m_worker = new GPhotoCameraWorker(m_context, m_camera);
-    connect(m_worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
-    connect(m_worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
-    connect(m_worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
-    m_workerThread->start();
-    m_worker->moveToThread(m_workerThread);
-
-    m_status = QCamera::LoadedStatus;
-    emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
-
-    return true;
-}
-
-void GPhotoCameraSession::closeCamera()
-{
-    // Camera is already closed
-    if (!m_camera)
-        return;
-
-    m_status = QCamera::UnloadingStatus;
-    emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
-
-    // Stop working thread
-    m_workerThread->quit();
-    m_workerThread->wait();
-    delete m_worker;
-
-    // Close GPhoto camera session
-    int ret = gp_camera_exit(m_camera, m_context);
-    if (ret != GP_OK) {
-        m_status = QCamera::LoadedStatus;
-        emit statusChanged(m_status);
-        emit readyForCaptureChanged(isReadyForCapture());
-
-        qWarning() << "Unable to close camera";
-        emit error(QCamera::CameraError, tr("Unable to close camera"));
-        return;
-    }
-
-    gp_camera_free(m_camera);
-    m_camera = 0;
-    m_status = QCamera::UnloadedStatus;
-    emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
-}
-
-bool GPhotoCameraSession::startViewFinder()
-{
-    m_status = QCamera::StartingStatus;
-    emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
-
-    // Capture first preview frame to detect the viewfinder size
-    m_surfaceMutex.lock();
-    QImage previewFrame = m_worker->capturePreviewImage();
-    if (m_surface) {
-        // Decoding JPEG image from camera produces RGB32 image
-        const bool ok = m_surface->start(QVideoSurfaceFormat(previewFrame.size(), QVideoFrame::Format_RGB32));
-        if (!ok)
-            qWarning() << "Unable to start viewfinder surface";
-    }
-    m_surfaceMutex.unlock();
-
-
-    m_status = QCamera::ActiveStatus;
-    emit statusChanged(m_status);
-    emit readyForCaptureChanged(isReadyForCapture());
-
-    // Show the first captured preview frame and start acquiring more of it
-    previewCaptured(previewFrame);
-
-    return true;
 }
 
 void GPhotoCameraSession::stopViewFinder()
 {
     m_status = QCamera::StoppingStatus;
-    emit statusChanged(m_status);
 
-    m_surfaceMutex.lock();
     if (m_surface)
         m_surface->stop();
-    m_surfaceMutex.unlock();
 
-    m_status = QCamera::LoadedStatus;
-    emit statusChanged(m_status);
+    QMetaObject::invokeMethod(m_worker, "stopViewFinder", Qt::QueuedConnection);
 }

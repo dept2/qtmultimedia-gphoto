@@ -1,14 +1,10 @@
 #ifndef GPHOTOCAMERASESSION_H
 #define GPHOTOCAMERASESSION_H
 
-#include <QObject>
 #include <QCamera>
 #include <QAbstractVideoSurface>
 #include <QCameraImageCapture>
-#include <QMutex>
 #include <QPointer>
-
-#include <gphoto2/gphoto2-camera.h>
 
 class GPhotoCameraWorker;
 
@@ -54,9 +50,7 @@ signals:
 
     // image capture control
     void readyForCaptureChanged(bool);
-//    void imageExposed(int id);
     void imageCaptured(int id, const QImage &preview);
-//    void imageMetadataAvailable(int id, const QString &key, const QVariant &value);
     void imageAvailable(int id, const QVideoFrame &buffer);
     void imageSaved(int id, const QString &fileName);
     void imageCaptureError(int id, int error, const QString &errorString);
@@ -68,11 +62,9 @@ private slots:
     void previewCaptured(const QImage& image);
     void imageDataCaptured(int id, const QByteArray& imageData, const QString& fileName);
 
-private:
-    bool openCamera();
-    void closeCamera();
+    void workerStatusChanged(QCamera::Status);
 
-    bool startViewFinder();
+private:
     void stopViewFinder();
 
     QCamera::State m_state;
@@ -82,10 +74,6 @@ private:
     QCameraImageCapture::CaptureDestinations m_captureDestination;
 
     QPointer<QAbstractVideoSurface> m_surface;
-    QMutex m_surfaceMutex;
-
-    GPContext *m_context;
-    Camera *m_camera;
 
     GPhotoCameraWorker *m_worker;
     QThread *m_workerThread;
