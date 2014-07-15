@@ -38,6 +38,10 @@ public:
     QAbstractVideoSurface *surface() const;
     void setSurface(QAbstractVideoSurface *surface);
 
+    // options control
+    QVariant parameter(const QString& name);
+    bool setParameter(const QString &name, const QVariant &value);
+
 signals:
     // camera control
     void statusChanged(QCamera::Status);

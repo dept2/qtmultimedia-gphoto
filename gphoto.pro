@@ -17,7 +17,8 @@ SOURCES += gphotoserviceplugin.cpp \
     gphotocameraworker.cpp \
     gphotocameraimagecapturecontrol.cpp \
     gphotocameracapturedestinationcontrol.cpp \
-    gphotovideoprobecontrol.cpp
+    gphotovideoprobecontrol.cpp \
+    gphotoexposurecontrol.cpp
 HEADERS += gphotoserviceplugin.h \
     gphotomediaservice.h \
     gphotocamerasession.h \
@@ -26,7 +27,8 @@ HEADERS += gphotoserviceplugin.h \
     gphotocameraworker.h \
     gphotocameraimagecapturecontrol.h \
     gphotocameracapturedestinationcontrol.h \
-    gphotovideoprobecontrol.h
+    gphotovideoprobecontrol.h \
+    gphotoexposurecontrol.h
 OTHER_FILES += gphoto.json
 LIBS += -lgphoto2
 

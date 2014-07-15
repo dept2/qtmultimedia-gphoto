@@ -30,11 +30,16 @@ public slots:
     void capturePreview();
     void capturePhoto(int id, const QString &fileName);
 
+    QVariant parameter(const QString& name);
+    bool setParameter(const QString &name, const QVariant &value);
+
 private:
     GPContext *m_context;
     Camera *m_camera;
 
     QCamera::Status m_status;
+
+    void logOption(const char* name);
 };
 
 #endif // GPHOTOCAMERAWORKER_H

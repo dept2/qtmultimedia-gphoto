@@ -157,6 +157,22 @@ void GPhotoCameraSession::setSurface(QAbstractVideoSurface *surface)
     m_surface = surface;
 }
 
+QVariant GPhotoCameraSession::parameter(const QString &name)
+{
+    QVariant result;
+    QMetaObject::invokeMethod(m_worker, "parameter", Qt::BlockingQueuedConnection, Q_RETURN_ARG(QVariant, result),
+                              Q_ARG(QString, name));
+    return result;
+}
+
+bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &value)
+{
+    bool result;
+    QMetaObject::invokeMethod(m_worker, "setParameter", Qt::BlockingQueuedConnection, Q_RETURN_ARG(bool, result),
+                              Q_ARG(QString, name), Q_ARG(QVariant, value));
+    return result;
+}
+
 void GPhotoCameraSession::previewCaptured(const QImage &image)
 {
     if (m_status != QCamera::ActiveStatus)
