@@ -35,7 +35,6 @@ QMediaControl *GPhotoMediaService::requestControl(const char *name)
     else if (qstrcmp(name, QCameraExposureControl_iid) == 0)
         return m_exposureControl;
 
-    qWarning("gphoto control %s not implemented yet", name);
     return 0;
 }
 
