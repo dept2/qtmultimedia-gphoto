@@ -175,10 +175,7 @@ bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &valu
 
 void GPhotoCameraSession::previewCaptured(const QImage &image)
 {
-    if (m_status != QCamera::ActiveStatus)
-        return;
-
-    if (m_surface) {
+    if (m_status == QCamera::ActiveStatus && m_surface && !image.isNull()) {
         if (m_surface->isActive() && image.size() != m_surface->surfaceFormat().frameSize())
             m_surface->stop();
 

@@ -157,10 +157,11 @@ void GPhotoCameraWorker::capturePreview()
                 emit statusChanged(m_status);
             }
 
-            emit previewCaptured(result);
         }
         gp_file_free(file);
     }
+
+    emit previewCaptured(result);
 }
 
 void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
