@@ -187,7 +187,8 @@ void GPhotoCameraSession::previewCaptured(const QImage &image)
         emit videoFrameProbed(frame);
     }
 
-    QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
+    if (m_status == QCamera::ActiveStatus)
+      QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
 }
 
 void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData, const QString &fileName)
