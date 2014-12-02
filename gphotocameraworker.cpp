@@ -144,7 +144,7 @@ void GPhotoCameraWorker::capturePreview()
         ret = gp_camera_capture_preview(m_camera, file, m_context);
 
         if (ret < GP_OK) {
-            qWarning() << "Failed retrieving preview";
+            qWarning() << "Failed retrieving preview" << ret;
         } else {
             const char* data;
             unsigned long int size = 0;

@@ -187,7 +187,7 @@ void GPhotoCameraSession::previewCaptured(const QImage &image)
         emit videoFrameProbed(frame);
     }
 
-    if (m_status == QCamera::ActiveStatus)
+    if (m_status == QCamera::ActiveStatus || m_status == QCamera::StartingStatus)
       QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
 }
 
