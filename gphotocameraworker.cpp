@@ -145,6 +145,9 @@ void GPhotoCameraWorker::capturePreview()
 
         if (ret < GP_OK) {
             qWarning() << "Failed retrieving preview" << ret;
+            m_status = QCamera::UnloadedStatus;
+            emit statusChanged(m_status);
+            closeCamera();
         } else {
             const char* data;
             unsigned long int size = 0;
