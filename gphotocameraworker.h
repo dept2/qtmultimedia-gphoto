@@ -36,6 +36,7 @@ public slots:
 private:
     GPContext *m_context;
     Camera *m_camera;
+    int m_capturingFailCount;
 
     QCamera::Status m_status;
 

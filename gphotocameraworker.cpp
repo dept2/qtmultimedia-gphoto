@@ -2,6 +2,11 @@
 
 #include <QCameraImageCapture>
 
+
+namespace {
+  const int capturingFailLimit = 10;
+}
+
 QDebug operator<<(QDebug dbg, const CameraWidgetType& t)
 {
     switch (t) {
@@ -41,6 +46,7 @@ GPhotoCameraWorker::GPhotoCameraWorker(QObject *parent)
     : QObject(parent)
     , m_context(0)
     , m_camera(0)
+    , m_capturingFailCount(0)
     , m_status(QCamera::UnloadedStatus)
 {
     // Create gphoto camera context
@@ -87,6 +93,7 @@ void GPhotoCameraWorker::openCamera()
         return;
     }
 
+    m_capturingFailCount = 0;
     m_status = QCamera::LoadedStatus;
     emit statusChanged(m_status);
 }
@@ -125,6 +132,7 @@ void GPhotoCameraWorker::stopViewFinder()
     emit statusChanged(QCamera::LoadedStatus);
 }
 
+
 void GPhotoCameraWorker::capturePreview()
 {
     openCamera();
@@ -145,10 +153,17 @@ void GPhotoCameraWorker::capturePreview()
 
         if (ret < GP_OK) {
             qWarning() << "Failed retrieving preview" << ret;
-            m_status = QCamera::UnloadedStatus;
-            emit statusChanged(m_status);
-            closeCamera();
+            m_capturingFailCount++;
+
+            if (m_capturingFailCount >= capturingFailLimit)
+            {
+              qWarning() << "Closing camera because of capturing fail";
+              m_status = QCamera::UnloadedStatus;
+              emit statusChanged(m_status);
+              closeCamera();
+            }
         } else {
+            m_capturingFailCount = 0;
             const char* data;
             unsigned long int size = 0;
 
