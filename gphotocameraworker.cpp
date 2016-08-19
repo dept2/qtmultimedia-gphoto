@@ -1,4 +1,5 @@
 #include "gphotocameraworker.h"
+#include "gphotofactory.h"
 
 #include <QCameraImageCapture>
 
@@ -42,22 +43,25 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType& t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(QObject *parent)
+GPhotoCameraWorker::GPhotoCameraWorker(GPhotoFactory* photoFactory, QObject *parent)
     : QObject(parent)
-    , m_context(0)
+    , m_photoFactory(photoFactory)
+    , m_context(gp_context_new())
     , m_camera(0)
     , m_capturingFailCount(0)
     , m_status(QCamera::UnloadedStatus)
 {
-    // Create gphoto camera context
-    m_context = gp_context_new();
     if (!m_context)
         m_status = QCamera::UnavailableStatus;
+
+    m_cameraDevice = m_photoFactory->defaultCameraDevice();
+    m_cameraDescription = m_photoFactory->cameraDescription(m_cameraDevice);
 }
 
 GPhotoCameraWorker::~GPhotoCameraWorker()
 {
     closeCamera();
+    gp_context_unref(m_context);
 }
 
 void GPhotoCameraWorker::openCamera()
@@ -66,6 +70,7 @@ void GPhotoCameraWorker::openCamera()
     if (m_camera)
         return;
 
+    const QString errorText = tr("Unable to open camera");
     m_status = QCamera::LoadingStatus;
     emit statusChanged(m_status);
 
@@ -77,20 +82,38 @@ void GPhotoCameraWorker::openCamera()
         emit statusChanged(m_status);
 
         qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, tr("Unable to open camera"));
+        emit error(QCamera::CameraError, errorText);
         return;
     }
 
-    // Init camera object
-    ret = gp_camera_init(m_camera, m_context);
-    if (ret != GP_OK) {
-        m_camera = 0;
-        m_status = QCamera::UnavailableStatus;
-        emit statusChanged(m_status);
+    bool ok = false;
+    CameraAbilities abilities = m_photoFactory->cameraAbilities(m_cameraDevice, &ok);
+    if (!ok) {
+      qWarning() << "Unable to get camera abilities for device" << m_cameraDevice;
+      emit error(QCamera::CameraError, errorText);
+      return;
+    }
 
-        qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, tr("Unable to open camera"));
-        return;
+    ret = gp_camera_set_abilities (m_camera, abilities);
+    if (ret < GP_OK) {
+      qWarning() << "Unable to set abilities for camera";
+      emit error(QCamera::CameraError, errorText);
+      return;
+    }
+
+    ok = false;
+    GPPortInfo portInfo = m_photoFactory->portInfo(m_cameraDescription, &ok);
+    if (!ok) {
+      qWarning() << "Unable to get camera port info for port" << m_cameraDescription;
+      emit error(QCamera::CameraError, errorText);
+      return;
+    }
+
+    ret = gp_camera_set_port_info (m_camera, portInfo);
+    if (ret < GP_OK) {
+      qWarning() << "Unable to set port info for camera";
+      emit error(QCamera::CameraError, errorText);
+      return;
     }
 
     m_capturingFailCount = 0;
@@ -132,6 +155,11 @@ void GPhotoCameraWorker::stopViewFinder()
     emit statusChanged(QCamera::LoadedStatus);
 }
 
+void GPhotoCameraWorker::setCamera(int index)
+{
+  m_cameraDevice = m_photoFactory->cameraDevices().at(index);
+  m_cameraDescription = m_photoFactory->cameraDescriptions().at(index);
+}
 
 void GPhotoCameraWorker::capturePreview()
 {
@@ -396,7 +424,6 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     gp_widget_free(option);
     return false;
 }
-
 
 void GPhotoCameraWorker::logOption(const char *name)
 {
