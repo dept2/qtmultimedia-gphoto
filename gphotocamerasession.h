@@ -7,13 +7,14 @@
 #include <QPointer>
 
 class GPhotoCameraWorker;
+class GPhotoFactory;
 
 
 class GPhotoCameraSession : public QObject
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraSession(QObject *parent = 0);
+    explicit GPhotoCameraSession(GPhotoFactory *photoFactory, QObject *parent = 0);
     ~GPhotoCameraSession();
 
     // camera control
@@ -41,6 +42,8 @@ public:
     // options control
     QVariant parameter(const QString& name);
     bool setParameter(const QString &name, const QVariant &value);
+
+    void setCamera(int index);
 
 signals:
     // camera control

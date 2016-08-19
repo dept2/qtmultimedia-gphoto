@@ -7,21 +7,21 @@
 #include <QStandardPaths>
 #include <QFile>
 
-GPhotoCameraSession::GPhotoCameraSession(QObject *parent)
+GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory* photoFactory, QObject *parent)
     : QObject(parent)
     , m_state(QCamera::UnloadedState)
     , m_status(QCamera::UnloadedStatus)
     , m_captureMode(QCamera::CaptureStillImage)
     , m_captureDestination(QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile)
     , m_surface(0)
-    , m_worker(new GPhotoCameraWorker)
+    , m_worker(new GPhotoCameraWorker(photoFactory))
     , m_workerThread(new QThread(this))
     , m_lastImageCaptureId(0)
 {
     m_workerThread->start();
     m_worker->moveToThread(m_workerThread);
 
-    connect(m_worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
+    connect(m_worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)), Qt::DirectConnection);
     connect(m_worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
 
     connect(m_worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
@@ -54,20 +54,20 @@ void GPhotoCameraSession::setState(QCamera::State state)
 
     if (previousState == QCamera::UnloadedState) {
         if (state == QCamera::LoadedState) {
-            QMetaObject::invokeMethod(m_worker, "openCamera", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_worker, "openCamera", Qt::BlockingQueuedConnection);
         } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::BlockingQueuedConnection);
         }
     } else if (previousState == QCamera::LoadedState) {
         if (state == QCamera::UnloadedState) {
-            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::BlockingQueuedConnection);
         } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::BlockingQueuedConnection);
         }
     } else if (previousState == QCamera::ActiveState) {
         if (state == QCamera::UnloadedState) {
             stopViewFinder();
-            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::BlockingQueuedConnection);
         } else if (state == QCamera::LoadedState) {
             stopViewFinder();
         }
@@ -171,6 +171,11 @@ bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &valu
     QMetaObject::invokeMethod(m_worker, "setParameter", Qt::BlockingQueuedConnection, Q_RETURN_ARG(bool, result),
                               Q_ARG(QString, name), Q_ARG(QVariant, value));
     return result;
+}
+
+void GPhotoCameraSession::setCamera(int index)
+{
+  QMetaObject::invokeMethod(m_worker, "setCamera", Q_ARG(int, index));
 }
 
 void GPhotoCameraSession::previewCaptured(const QImage &image)

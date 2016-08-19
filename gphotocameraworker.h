@@ -5,12 +5,14 @@
 #include <gphoto2/gphoto2-camera.h>
 #include "gphotocamerasession.h"
 
+class GPhotoFactory;
+
 
 class GPhotoCameraWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraWorker(QObject *parent = 0);
+    explicit GPhotoCameraWorker(GPhotoFactory *photoFactory, QObject *parent = 0);
     ~GPhotoCameraWorker();
 
 signals:
@@ -26,6 +28,7 @@ public slots:
     void openCamera();
     void closeCamera();
     void stopViewFinder();
+    void setCamera(int index);
 
     void capturePreview();
     void capturePhoto(int id, const QString &fileName);
@@ -34,9 +37,13 @@ public slots:
     bool setParameter(const QString &name, const QVariant &value);
 
 private:
+    GPhotoFactory *const m_photoFactory;
     GPContext *m_context;
     Camera *m_camera;
     int m_capturingFailCount;
+
+    QByteArray m_cameraDevice;
+    QString m_cameraDescription;
 
     QCamera::Status m_status;
 

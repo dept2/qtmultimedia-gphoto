@@ -6,17 +6,19 @@
 #include "gphotocameracapturedestinationcontrol.h"
 #include "gphotovideoprobecontrol.h"
 #include "gphotoexposurecontrol.h"
+#include "gphotovideoinputdevicecontrol.h"
 
 
-GPhotoMediaService::GPhotoMediaService(QObject *parent)
+GPhotoMediaService::GPhotoMediaService(GPhotoFactory* photoFactory, QObject *parent)
     : QMediaService(parent)
-    , m_session(new GPhotoCameraSession(this))
+    , m_session(new GPhotoCameraSession(photoFactory, this))
     , m_cameraControl(new GPhotoCameraControl(m_session, this))
     , m_videoRendererControl(new GPhotoVideoRendererControl(m_session, this))
     , m_imageCaptureControl(new GPhotoCameraImageCaptureControl(m_session, this))
     , m_destinationControl(new GPhotoCameraCaptureDestinationControl(m_session, this))
     , m_videoProbeControl(new GPhotoVideoProbeControl(m_session, this))
     , m_exposureControl(new GPhotoExposureControl(m_session, this))
+    , m_videoInputDeviceControl(new GPhotoVideoInputDeviceControl(photoFactory, m_session, this))
 {
 }
 
@@ -34,6 +36,8 @@ QMediaControl *GPhotoMediaService::requestControl(const char *name)
         return m_videoProbeControl;
     else if (qstrcmp(name, QCameraExposureControl_iid) == 0)
         return m_exposureControl;
+    else if (qstrcmp(name, QVideoDeviceSelectorControl_iid) == 0)
+        return m_videoInputDeviceControl;
 
     return 0;
 }
