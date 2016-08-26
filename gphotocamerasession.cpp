@@ -307,8 +307,14 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
     if (!m_workers.contains(cameraIndex)) {
         Q_ASSERT(m_factory);
 
-        const CameraAbilities abilities = m_factory->cameraAbilities(cameraIndex);
-        const GPPortInfo portInfo = m_factory->portInfo(cameraIndex);
+        bool ok = false;
+        const CameraAbilities abilities = m_factory->cameraAbilities(cameraIndex, &ok);
+        if (!ok) return 0;
+
+        ok = false;
+        const GPPortInfo portInfo = m_factory->portInfo(cameraIndex, &ok);
+        if (!ok) return 0;
+
         GPhotoCameraWorker *worker = new GPhotoCameraWorker(abilities, portInfo);
         worker->moveToThread(m_workerThread);
 

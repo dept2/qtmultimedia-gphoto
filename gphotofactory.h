@@ -16,8 +16,8 @@ public:
     QStringList cameraDescriptions() const;
     QByteArray defaultCameraDevice() const;
 
-    CameraAbilities cameraAbilities(int cameraIndex) const;
-    GPPortInfo portInfo(int cameraIndex) const;
+    CameraAbilities cameraAbilities(int cameraIndex, bool *ok = 0) const;
+    GPPortInfo portInfo(int cameraIndex, bool *ok = 0) const;
 
 private:
     void initCameraAbilitiesList();

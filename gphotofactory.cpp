@@ -41,50 +41,60 @@ QByteArray GPhotoFactory::defaultCameraDevice() const
     return m_defaultCameraDevice;
 }
 
-CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex) const
+CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool* ok) const
 {
     CameraAbilities abilities;
 
-    if (m_cameraDevices.isEmpty())
+    if (m_cameraDevices.isEmpty()) {
+        if (ok) *ok = false;
         return abilities;
+    }
 
     const QByteArray cameraDevice = m_cameraDevices.values().at(cameraIndex);
     const int abilitiesIndex = gp_abilities_list_lookup_model(m_cameraAbilitiesList, cameraDevice.data());
     if (abilitiesIndex < GP_OK) {
         qWarning() << "GPhoto: unable to find camera abilities";
+        if (ok) *ok = false;
         return abilities;
     }
 
     const int ret = gp_abilities_list_get_abilities(m_cameraAbilitiesList, abilitiesIndex, &abilities);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to get camera abilities";
+        if (ok) *ok = false;
         return abilities;
     }
 
+    if (ok) *ok = true;
     return abilities;
 }
 
-GPPortInfo GPhotoFactory::portInfo(int cameraIndex) const
+GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
 {
     GPPortInfo info;
     gp_port_info_new(&info);
 
-    if (m_cameraDevices.isEmpty())
+    if (m_cameraDevices.isEmpty()) {
+        if (ok) *ok = false;
         return info;
+    }
 
     const QByteArray cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
     const int port = gp_port_info_list_lookup_path(m_portInfoList, cameraDescription.data());
     if (port < GP_OK) {
         qWarning() << "GPhoto: unable to find camera port";
+        if (ok) *ok = false;
         return info;
     }
 
     const int ret = gp_port_info_list_get_info (m_portInfoList, port, &info);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to get camera port info";
+        if (ok) *ok = false;
         return info;
     }
 
+    if (ok) *ok = true;
     return info;
 }
 
