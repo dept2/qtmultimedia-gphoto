@@ -20,12 +20,14 @@ int GPhotoVideoInputDeviceControl::deviceCount() const
 
 QString GPhotoVideoInputDeviceControl::deviceName(int index) const
 {
-    return QString::fromUtf8(m_factory->cameraDevices().keys().at(index));
+    const QByteArrayList &devices = m_factory->cameraDevices().keys();
+    return QString::fromUtf8(devices.empty() ? "" : devices.at(index));
 }
 
 QString GPhotoVideoInputDeviceControl::deviceDescription(int index) const
 {
-    return m_factory->cameraDescriptions().at(index);
+    const QStringList &descriptions = m_factory->cameraDescriptions();
+    return descriptions.isEmpty() ? "" : descriptions.at(index);
 }
 
 int GPhotoVideoInputDeviceControl::defaultDevice() const

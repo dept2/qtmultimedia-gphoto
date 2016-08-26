@@ -45,6 +45,9 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex) const
 {
     CameraAbilities abilities;
 
+    if (m_cameraDevices.isEmpty())
+        return abilities;
+
     const QByteArray cameraDevice = m_cameraDevices.values().at(cameraIndex);
     const int abilitiesIndex = gp_abilities_list_lookup_model(m_cameraAbilitiesList, cameraDevice.data());
     if (abilitiesIndex < GP_OK) {
@@ -64,6 +67,10 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex) const
 GPPortInfo GPhotoFactory::portInfo(int cameraIndex) const
 {
     GPPortInfo info;
+    gp_port_info_new(&info);
+
+    if (m_cameraDevices.isEmpty())
+        return info;
 
     const QByteArray cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
     const int port = gp_port_info_list_lookup_path(m_portInfoList, cameraDescription.data());
