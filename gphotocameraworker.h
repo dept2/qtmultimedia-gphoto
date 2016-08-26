@@ -10,7 +10,7 @@ class GPhotoCameraWorker : public QObject
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraWorker(QObject *parent = 0);
+    GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent = 0);
     ~GPhotoCameraWorker();
 
 signals:
@@ -34,7 +34,9 @@ public slots:
     bool setParameter(const QString &name, const QVariant &value);
 
 private:
-    GPContext *m_context;
+    const CameraAbilities m_abilities;
+    const GPPortInfo m_portInfo;
+    GPContext *const m_context;
     Camera *m_camera;
     int m_capturingFailCount;
 

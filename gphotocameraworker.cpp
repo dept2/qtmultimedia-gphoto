@@ -42,15 +42,15 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType& t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(QObject *parent)
+GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities& abilities, const GPPortInfo& portInfo, QObject *parent)
     : QObject(parent)
-    , m_context(0)
+    , m_abilities(abilities)
+    , m_portInfo(portInfo)
+    , m_context(gp_context_new())
     , m_camera(0)
     , m_capturingFailCount(0)
     , m_status(QCamera::UnloadedStatus)
 {
-    // Create gphoto camera context
-    m_context = gp_context_new();
     if (!m_context)
         m_status = QCamera::UnavailableStatus;
 }
@@ -58,6 +58,7 @@ GPhotoCameraWorker::GPhotoCameraWorker(QObject *parent)
 GPhotoCameraWorker::~GPhotoCameraWorker()
 {
     closeCamera();
+    gp_context_unref(m_context);
 }
 
 void GPhotoCameraWorker::openCamera()
@@ -66,6 +67,7 @@ void GPhotoCameraWorker::openCamera()
     if (m_camera)
         return;
 
+    const QString errorText = tr("Unable to open camera");
     m_status = QCamera::LoadingStatus;
     emit statusChanged(m_status);
 
@@ -77,19 +79,21 @@ void GPhotoCameraWorker::openCamera()
         emit statusChanged(m_status);
 
         qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, tr("Unable to open camera"));
+        emit error(QCamera::CameraError, errorText);
         return;
     }
 
-    // Init camera object
-    ret = gp_camera_init(m_camera, m_context);
-    if (ret != GP_OK) {
-        m_camera = 0;
-        m_status = QCamera::UnavailableStatus;
-        emit statusChanged(m_status);
+    ret = gp_camera_set_abilities(m_camera, m_abilities);
+    if (ret < GP_OK) {
+        qWarning() << "Unable to set abilities for camera";
+        emit error(QCamera::CameraError, errorText);
+        return;
+    }
 
-        qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, tr("Unable to open camera"));
+    ret = gp_camera_set_port_info(m_camera, m_portInfo);
+    if (ret < GP_OK) {
+        qWarning() << "Unable to set port info for camera";
+        emit error(QCamera::CameraError, errorText);
         return;
     }
 
@@ -131,7 +135,6 @@ void GPhotoCameraWorker::stopViewFinder()
     m_status = QCamera::LoadedStatus;
     emit statusChanged(QCamera::LoadedStatus);
 }
-
 
 void GPhotoCameraWorker::capturePreview()
 {
@@ -396,7 +399,6 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     gp_widget_free(option);
     return false;
 }
-
 
 void GPhotoCameraWorker::logOption(const char *name)
 {
