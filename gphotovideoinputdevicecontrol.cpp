@@ -5,7 +5,7 @@
 #include <QDebug>
 
 
-GPhotoVideoInputDeviceControl::GPhotoVideoInputDeviceControl(GPhotoFactory* factory, GPhotoCameraSession* session, QObject* parent)
+GPhotoVideoInputDeviceControl::GPhotoVideoInputDeviceControl(GPhotoFactory *factory, GPhotoCameraSession *session, QObject *parent)
     : QVideoDeviceSelectorControl(parent)
     , m_selectedDevice(-1)
     , m_factory(factory)

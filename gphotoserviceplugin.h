@@ -28,7 +28,7 @@ public:
 private:
     GPhotoFactory* factory() const;
 
-    mutable GPhotoFactory* m_factory;
+    mutable GPhotoFactory *m_factory;
 };
 
 #endif // GPHOTOSERVICEPLUGIN_H

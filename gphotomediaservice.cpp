@@ -8,7 +8,7 @@
 #include "gphotoexposurecontrol.h"
 #include "gphotovideoinputdevicecontrol.h"
 
-GPhotoMediaService::GPhotoMediaService(GPhotoFactory* factory, QObject *parent)
+GPhotoMediaService::GPhotoMediaService(GPhotoFactory *factory, QObject *parent)
     : QMediaService(parent)
     , m_session(new GPhotoCameraSession(factory, this))
     , m_cameraControl(new GPhotoCameraControl(m_session, this))

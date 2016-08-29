@@ -30,7 +30,7 @@ public slots:
     void capturePreview();
     void capturePhoto(int id, const QString &fileName);
 
-    QVariant parameter(const QString& name);
+    QVariant parameter(const QString &name);
     bool setParameter(const QString &name, const QVariant &value);
 
 private:

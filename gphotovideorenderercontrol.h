@@ -11,7 +11,7 @@ class GPhotoVideoRendererControl : public QVideoRendererControl
 public:
     explicit GPhotoVideoRendererControl(GPhotoCameraSession *session, QObject *parent = 0);
 
-    QAbstractVideoSurface *surface() const Q_DECL_OVERRIDE;
+    QAbstractVideoSurface* surface() const Q_DECL_OVERRIDE;
     void setSurface(QAbstractVideoSurface *surface) Q_DECL_OVERRIDE;
 
 private:

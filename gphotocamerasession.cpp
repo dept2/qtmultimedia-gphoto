@@ -8,7 +8,7 @@
 #include <QStandardPaths>
 #include <QFile>
 
-GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory* factory, QObject *parent)
+GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent)
     : QObject(parent)
     , m_factory(factory)
     , m_state(QCamera::UnloadedState)
@@ -151,7 +151,7 @@ int GPhotoCameraSession::capture(const QString &fileName)
     return m_lastImageCaptureId;
 }
 
-QAbstractVideoSurface *GPhotoCameraSession::surface() const
+QAbstractVideoSurface* GPhotoCameraSession::surface() const
 {
     return m_surface;
 }

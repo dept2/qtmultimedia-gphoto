@@ -7,7 +7,7 @@ namespace {
   const int capturingFailLimit = 10;
 }
 
-QDebug operator<<(QDebug dbg, const CameraWidgetType& t)
+QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
 {
     switch (t) {
     case GP_WIDGET_WINDOW:
@@ -42,7 +42,7 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType& t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities& abilities, const GPPortInfo& portInfo, QObject *parent)
+GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent)
     : QObject(parent)
     , m_abilities(abilities)
     , m_portInfo(portInfo)

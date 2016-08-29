@@ -33,14 +33,14 @@ public:
 
     // capture control
     bool isReadyForCapture() const;
-    int capture(const QString& fileName);
+    int capture(const QString &fileName);
 
     // video renderer control
-    QAbstractVideoSurface *surface() const;
+    QAbstractVideoSurface* surface() const;
     void setSurface(QAbstractVideoSurface *surface);
 
     // options control
-    QVariant parameter(const QString& name);
+    QVariant parameter(const QString &name);
     bool setParameter(const QString &name, const QVariant &value);
 
     void setCamera(int cameraIndex);
@@ -63,17 +63,17 @@ signals:
     void imageCaptureError(int id, int error, const QString &errorString);
 
     // video probe control
-    void videoFrameProbed(const QVideoFrame& frame);
+    void videoFrameProbed(const QVideoFrame &frame);
 
 private slots:
-    void previewCaptured(const QImage& image);
-    void imageDataCaptured(int id, const QByteArray& imageData, const QString& fileName);
+    void previewCaptured(const QImage &image);
+    void imageDataCaptured(int id, const QByteArray &imageData, const QString &fileName);
 
     void workerStatusChanged(QCamera::Status);
 
 private:
     void stopViewFinder();
-    GPhotoCameraWorker *getWorker(int cameraIndex);
+    GPhotoCameraWorker* getWorker(int cameraIndex);
 
     GPhotoFactory *const m_factory;
 

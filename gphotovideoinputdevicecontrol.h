@@ -11,14 +11,16 @@ class GPhotoVideoInputDeviceControl : public QVideoDeviceSelectorControl
 public:
     GPhotoVideoInputDeviceControl(GPhotoFactory *factory, GPhotoCameraSession *session, QObject *parent = 0);
 
-    int deviceCount() const;
-    QString deviceName(int index) const;
-    QString deviceDescription(int index) const;
-    int defaultDevice() const;
-    int selectedDevice() const;
+    int deviceCount() const Q_DECL_OVERRIDE;
+
+    QString deviceName(int index) const Q_DECL_OVERRIDE;
+    QString deviceDescription(int index) const Q_DECL_OVERRIDE;
+
+    int defaultDevice() const Q_DECL_OVERRIDE;
+    int selectedDevice() const Q_DECL_OVERRIDE;
 
 public slots:
-    void setSelectedDevice(int index);
+    void setSelectedDevice(int index) Q_DECL_OVERRIDE;
 
 private:
     int m_selectedDevice;

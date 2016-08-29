@@ -41,7 +41,7 @@ QByteArray GPhotoFactory::defaultCameraDevice() const
     return m_defaultCameraDevice;
 }
 
-CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool* ok) const
+CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
 {
     CameraAbilities abilities;
 

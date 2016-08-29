@@ -7,7 +7,7 @@ GPhotoVideoRendererControl::GPhotoVideoRendererControl(GPhotoCameraSession *sess
 {
 }
 
-QAbstractVideoSurface *GPhotoVideoRendererControl::surface() const
+QAbstractVideoSurface* GPhotoVideoRendererControl::surface() const
 {
     return m_session->surface();
 }
