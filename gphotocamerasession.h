@@ -1,19 +1,20 @@
 #ifndef GPHOTOCAMERASESSION_H
 #define GPHOTOCAMERASESSION_H
 
-#include <QCamera>
 #include <QAbstractVideoSurface>
+#include <QCamera>
 #include <QCameraImageCapture>
+#include <QMap>
 #include <QPointer>
 
 class GPhotoCameraWorker;
-
+class GPhotoFactory;
 
 class GPhotoCameraSession : public QObject
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraSession(QObject *parent = 0);
+    explicit GPhotoCameraSession(GPhotoFactory *factory, QObject *parent = 0);
     ~GPhotoCameraSession();
 
     // camera control
@@ -32,15 +33,17 @@ public:
 
     // capture control
     bool isReadyForCapture() const;
-    int capture(const QString& fileName);
+    int capture(const QString &fileName);
 
     // video renderer control
-    QAbstractVideoSurface *surface() const;
+    QAbstractVideoSurface* surface() const;
     void setSurface(QAbstractVideoSurface *surface);
 
     // options control
-    QVariant parameter(const QString& name);
+    QVariant parameter(const QString &name);
     bool setParameter(const QString &name, const QVariant &value);
+
+    void setCamera(int cameraIndex);
 
 signals:
     // camera control
@@ -60,16 +63,19 @@ signals:
     void imageCaptureError(int id, int error, const QString &errorString);
 
     // video probe control
-    void videoFrameProbed(const QVideoFrame& frame);
+    void videoFrameProbed(const QVideoFrame &frame);
 
 private slots:
-    void previewCaptured(const QImage& image);
-    void imageDataCaptured(int id, const QByteArray& imageData, const QString& fileName);
+    void previewCaptured(const QImage &image);
+    void imageDataCaptured(int id, const QByteArray &imageData, const QString &fileName);
 
     void workerStatusChanged(QCamera::Status);
 
 private:
     void stopViewFinder();
+    GPhotoCameraWorker* getWorker(int cameraIndex);
+
+    GPhotoFactory *const m_factory;
 
     QCamera::State m_state;
     QCamera::Status m_status;
@@ -79,8 +85,10 @@ private:
 
     QPointer<QAbstractVideoSurface> m_surface;
 
-    GPhotoCameraWorker *m_worker;
     QThread *m_workerThread;
+    QMap<int, GPhotoCameraWorker*> m_workers;
+    GPhotoCameraWorker *m_currentWorker;
+    bool m_setStateRequired;
 
     int m_lastImageCaptureId;
 };

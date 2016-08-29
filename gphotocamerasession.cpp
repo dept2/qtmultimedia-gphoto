@@ -1,5 +1,6 @@
 #include "gphotocamerasession.h"
 #include "gphotocameraworker.h"
+#include "gphotofactory.h"
 
 #include <QVideoSurfaceFormat>
 #include <QCameraImageCapture>
@@ -7,26 +8,20 @@
 #include <QStandardPaths>
 #include <QFile>
 
-GPhotoCameraSession::GPhotoCameraSession(QObject *parent)
+GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent)
     : QObject(parent)
+    , m_factory(factory)
     , m_state(QCamera::UnloadedState)
     , m_status(QCamera::UnloadedStatus)
     , m_captureMode(QCamera::CaptureStillImage)
     , m_captureDestination(QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile)
     , m_surface(0)
-    , m_worker(new GPhotoCameraWorker)
     , m_workerThread(new QThread(this))
+    , m_currentWorker(0)
+    , m_setStateRequired(false)
     , m_lastImageCaptureId(0)
 {
     m_workerThread->start();
-    m_worker->moveToThread(m_workerThread);
-
-    connect(m_worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
-    connect(m_worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
-
-    connect(m_worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
-    connect(m_worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
-    connect(m_worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
 }
 
 GPhotoCameraSession::~GPhotoCameraSession()
@@ -37,7 +32,7 @@ GPhotoCameraSession::~GPhotoCameraSession()
     // Stop working thread
     m_workerThread->quit();
     m_workerThread->wait();
-    delete m_worker;
+    qDeleteAll(m_workers);
 }
 
 QCamera::State GPhotoCameraSession::state() const
@@ -47,6 +42,18 @@ QCamera::State GPhotoCameraSession::state() const
 
 void GPhotoCameraSession::setState(QCamera::State state)
 {
+    if (m_setStateRequired) {
+        if (state == QCamera::UnloadedState)
+            QMetaObject::invokeMethod(m_currentWorker, "closeCamera", Qt::QueuedConnection);
+        else if (state == QCamera::LoadedState)
+            QMetaObject::invokeMethod(m_currentWorker, "openCamera", Qt::QueuedConnection);
+        else if (state == QCamera::ActiveState)
+            QMetaObject::invokeMethod(m_currentWorker, "capturePreview", Qt::QueuedConnection);
+
+        m_setStateRequired = false;
+        return;
+    }
+
     if (m_state == state)
         return;
 
@@ -54,20 +61,20 @@ void GPhotoCameraSession::setState(QCamera::State state)
 
     if (previousState == QCamera::UnloadedState) {
         if (state == QCamera::LoadedState) {
-            QMetaObject::invokeMethod(m_worker, "openCamera", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_currentWorker, "openCamera", Qt::QueuedConnection);
         } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_currentWorker, "capturePreview", Qt::QueuedConnection);
         }
     } else if (previousState == QCamera::LoadedState) {
         if (state == QCamera::UnloadedState) {
-            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_currentWorker, "closeCamera", Qt::QueuedConnection);
         } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_currentWorker, "capturePreview", Qt::QueuedConnection);
         }
     } else if (previousState == QCamera::ActiveState) {
         if (state == QCamera::UnloadedState) {
             stopViewFinder();
-            QMetaObject::invokeMethod(m_worker, "closeCamera", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_currentWorker, "closeCamera", Qt::QueuedConnection);
         } else if (state == QCamera::LoadedState) {
             stopViewFinder();
         }
@@ -139,12 +146,12 @@ int GPhotoCameraSession::capture(const QString &fileName)
         return m_lastImageCaptureId;
     }
 
-    QMetaObject::invokeMethod(m_worker, "capturePhoto", Qt::QueuedConnection, Q_ARG(int, m_lastImageCaptureId),
-                              Q_ARG(QString, fileName));
+    QMetaObject::invokeMethod(m_currentWorker, "capturePhoto", Qt::QueuedConnection,
+                              Q_ARG(int, m_lastImageCaptureId), Q_ARG(QString, fileName));
     return m_lastImageCaptureId;
 }
 
-QAbstractVideoSurface *GPhotoCameraSession::surface() const
+QAbstractVideoSurface* GPhotoCameraSession::surface() const
 {
     return m_surface;
 }
@@ -160,17 +167,26 @@ void GPhotoCameraSession::setSurface(QAbstractVideoSurface *surface)
 QVariant GPhotoCameraSession::parameter(const QString &name)
 {
     QVariant result;
-    QMetaObject::invokeMethod(m_worker, "parameter", Qt::BlockingQueuedConnection, Q_RETURN_ARG(QVariant, result),
-                              Q_ARG(QString, name));
+    QMetaObject::invokeMethod(m_currentWorker, "parameter", Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(QVariant, result), Q_ARG(QString, name));
     return result;
 }
 
 bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &value)
 {
     bool result;
-    QMetaObject::invokeMethod(m_worker, "setParameter", Qt::BlockingQueuedConnection, Q_RETURN_ARG(bool, result),
-                              Q_ARG(QString, name), Q_ARG(QVariant, value));
+    QMetaObject::invokeMethod(m_currentWorker, "setParameter", Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(bool, result), Q_ARG(QString, name), Q_ARG(QVariant, value));
     return result;
+}
+
+void GPhotoCameraSession::setCamera(int cameraIndex)
+{
+    GPhotoCameraWorker *worker = getWorker(cameraIndex);
+    if (m_currentWorker != worker) {
+        m_currentWorker = worker;
+        m_setStateRequired = true;
+    }
 }
 
 void GPhotoCameraSession::previewCaptured(const QImage &image)
@@ -188,7 +204,7 @@ void GPhotoCameraSession::previewCaptured(const QImage &image)
     }
 
     if (m_status == QCamera::ActiveStatus || m_status == QCamera::StartingStatus)
-      QMetaObject::invokeMethod(m_worker, "capturePreview", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(m_currentWorker, "capturePreview", Qt::QueuedConnection);
 }
 
 void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData, const QString &fileName)
@@ -283,5 +299,34 @@ void GPhotoCameraSession::stopViewFinder()
     if (m_surface)
         m_surface->stop();
 
-    QMetaObject::invokeMethod(m_worker, "stopViewFinder", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(m_currentWorker, "stopViewFinder", Qt::QueuedConnection);
+}
+
+GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
+{
+    if (!m_workers.contains(cameraIndex)) {
+        Q_ASSERT(m_factory);
+
+        bool ok = false;
+        const CameraAbilities abilities = m_factory->cameraAbilities(cameraIndex, &ok);
+        if (!ok) return 0;
+
+        ok = false;
+        const GPPortInfo portInfo = m_factory->portInfo(cameraIndex, &ok);
+        if (!ok) return 0;
+
+        GPhotoCameraWorker *worker = new GPhotoCameraWorker(abilities, portInfo);
+        worker->moveToThread(m_workerThread);
+
+        connect(worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
+        connect(worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
+        connect(worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
+        connect(worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
+        connect(worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
+
+        m_workers.insert(cameraIndex, worker);
+        return worker;
+    }
+
+    return m_workers[cameraIndex];
 }

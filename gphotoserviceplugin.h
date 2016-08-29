@@ -3,6 +3,7 @@
 
 #include <qmediaserviceproviderplugin.h>
 
+class GPhotoFactory;
 
 class GPhotoServicePlugin
     : public QMediaServiceProviderPlugin
@@ -14,6 +15,9 @@ class GPhotoServicePlugin
     Q_INTERFACES(QMediaServiceDefaultDeviceInterface)
     Q_PLUGIN_METADATA(IID "org.qt-project.qt.mediaserviceproviderfactory/5.0" FILE "gphoto.json")
 public:
+    GPhotoServicePlugin();
+    ~GPhotoServicePlugin();
+
     QMediaService* create(const QString &key);
     void release(QMediaService *service);
 
@@ -22,11 +26,9 @@ public:
     QString deviceDescription(const QByteArray &service, const QByteArray &device);
 
 private:
-    void updateDevices() const;
+    GPhotoFactory* factory() const;
 
-    mutable QByteArray m_defaultCameraDevice;
-    mutable QList<QByteArray> m_cameraDevices;
-    mutable QStringList m_cameraDescriptions;
+    mutable GPhotoFactory *m_factory;
 };
 
 #endif // GPHOTOSERVICEPLUGIN_H
