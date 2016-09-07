@@ -43,6 +43,7 @@ QByteArray GPhotoFactory::defaultCameraDevice() const
 
 CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
 {
+    updateDevices();
     CameraAbilities abilities;
 
     if (m_cameraDevices.isEmpty()) {
@@ -71,6 +72,7 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
 
 GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
 {
+    updateDevices();
     GPPortInfo info;
     gp_port_info_new(&info);
 
