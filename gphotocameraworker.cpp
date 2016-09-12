@@ -2,7 +2,6 @@
 
 #include <QCameraImageCapture>
 
-
 namespace {
   const int capturingFailLimit = 10;
 }
@@ -48,6 +47,7 @@ GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const G
     , m_portInfo(portInfo)
     , m_context(gp_context_new())
     , m_camera(0)
+    , m_file(0)
     , m_capturingFailCount(0)
     , m_status(QCamera::UnloadedStatus)
 {
@@ -67,33 +67,31 @@ void GPhotoCameraWorker::openCamera()
     if (m_camera)
         return;
 
-    const QString errorText = tr("Unable to open camera");
     m_status = QCamera::LoadingStatus;
     emit statusChanged(m_status);
 
     // Create camera object
     int ret = gp_camera_new(&m_camera);
     if (ret != GP_OK) {
-        m_camera = 0;
-        m_status = QCamera::UnavailableStatus;
-        emit statusChanged(m_status);
-
-        qWarning() << "Unable to open camera";
-        emit error(QCamera::CameraError, errorText);
+        openCameraErrorHandle("Unable to open camera");
         return;
     }
 
     ret = gp_camera_set_abilities(m_camera, m_abilities);
     if (ret < GP_OK) {
-        qWarning() << "Unable to set abilities for camera";
-        emit error(QCamera::CameraError, errorText);
+        openCameraErrorHandle("Unable to set abilities for camera");
         return;
     }
 
     ret = gp_camera_set_port_info(m_camera, m_portInfo);
     if (ret < GP_OK) {
-        qWarning() << "Unable to set port info for camera";
-        emit error(QCamera::CameraError, errorText);
+        openCameraErrorHandle("Unable to set port info for camera");
+        return;
+    }
+
+    ret = gp_file_new(&m_file);
+    if (ret < GP_OK) {
+        openCameraErrorHandle("Could not create capture file");
         return;
     }
 
@@ -122,6 +120,8 @@ void GPhotoCameraWorker::closeCamera()
         return;
     }
 
+    gp_file_free(m_file);
+    m_file = 0;
     gp_camera_free(m_camera);
     m_camera = 0;
     m_status = QCamera::UnloadedStatus;
@@ -146,40 +146,33 @@ void GPhotoCameraWorker::capturePreview()
     }
 
     QImage result;
+    gp_file_clean(m_file);
 
-    CameraFile* file;
-    int ret = gp_file_new(&file);
+    int ret = gp_camera_capture_preview(m_camera, m_file, m_context);
     if (ret < GP_OK) {
-        qCritical() << "Could not create file";
-    } else {
-        ret = gp_camera_capture_preview(m_camera, file, m_context);
+        qWarning() << "Failed retrieving preview" << ret;
+        m_capturingFailCount++;
 
-        if (ret < GP_OK) {
-            qWarning() << "Failed retrieving preview" << ret;
-            m_capturingFailCount++;
-
-            if (m_capturingFailCount >= capturingFailLimit)
-            {
-              qWarning() << "Closing camera because of capturing fail";
-              m_status = QCamera::UnloadedStatus;
-              emit statusChanged(m_status);
-              closeCamera();
-            }
-        } else {
-            m_capturingFailCount = 0;
-            const char* data;
-            unsigned long int size = 0;
-
-            gp_file_get_data_and_size(file, &data, &size);
-            result.loadFromData(QByteArray(data, size));
-
-            if (m_status != QCamera::ActiveStatus) {
-                m_status = QCamera::ActiveStatus;
-                emit statusChanged(m_status);
-            }
-
+        if (m_capturingFailCount >= capturingFailLimit)
+        {
+          qWarning() << "Closing camera because of capturing fail";
+          m_status = QCamera::UnloadedStatus;
+          emit statusChanged(m_status);
+          closeCamera();
         }
-        gp_file_free(file);
+    } else {
+        m_capturingFailCount = 0;
+        const char* data;
+        unsigned long int size = 0;
+
+        gp_file_get_data_and_size(m_file, &data, &size);
+        result.loadFromData(QByteArray(data, size));
+
+        if (m_status != QCamera::ActiveStatus) {
+            m_status = QCamera::ActiveStatus;
+            emit statusChanged(m_status);
+        }
+
     }
 
     emit previewCaptured(result);
@@ -398,6 +391,16 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
     gp_widget_free(option);
     return false;
+}
+
+void GPhotoCameraWorker::openCameraErrorHandle(const QString& errorText)
+{
+  qWarning() << qPrintable(errorText);
+  m_status = QCamera::UnavailableStatus;
+  emit statusChanged(m_status);
+  emit error(QCamera::CameraError, tr("Unable to open camera"));
+  gp_camera_free(m_camera);
+  m_camera = 0;
 }
 
 void GPhotoCameraWorker::logOption(const char *name)

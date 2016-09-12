@@ -38,10 +38,12 @@ private:
     const GPPortInfo m_portInfo;
     GPContext *const m_context;
     Camera *m_camera;
+    CameraFile *m_file;
     int m_capturingFailCount;
 
     QCamera::Status m_status;
 
+    void openCameraErrorHandle(const QString &errorText);
     void logOption(const char* name);
 };
 
