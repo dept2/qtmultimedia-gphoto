@@ -1,6 +1,7 @@
 #include "gphotofactory.h"
 
 #include <QDebug>
+#include <QElapsedTimer>
 
 GPhotoFactory::GPhotoFactory()
     : m_context(gp_context_new())
@@ -13,7 +14,6 @@ GPhotoFactory::GPhotoFactory()
     }
 
     initCameraAbilitiesList();
-    initPortInfoList();
 }
 
 GPhotoFactory::~GPhotoFactory()
@@ -81,6 +81,7 @@ GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
         return info;
     }
 
+    QMutexLocker locker(&m_mutex);
     const QByteArray cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
     const int port = gp_port_info_list_lookup_path(m_portInfoList, cameraDescription.data());
     if (port < GP_OK) {
@@ -89,7 +90,7 @@ GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
         return info;
     }
 
-    const int ret = gp_port_info_list_get_info (m_portInfoList, port, &info);
+    const int ret = gp_port_info_list_get_info(m_portInfoList, port, &info);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to get camera port info";
         if (ok) *ok = false;
@@ -102,28 +103,39 @@ GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
 
 void GPhotoFactory::initCameraAbilitiesList()
 {
-    int ret = gp_abilities_list_new(&m_cameraAbilitiesList);
-    if (ret < GP_OK) {
-        qWarning() << "GPhoto: unable to create camera abilities list";
-        return;
-    }
+    gp_abilities_list_new(&m_cameraAbilitiesList);
 
-    ret = gp_abilities_list_load(m_cameraAbilitiesList, m_context);
+    int ret = gp_abilities_list_load(m_cameraAbilitiesList, m_context);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to load camera abilities list";
         return;
     }
-}
 
-void GPhotoFactory::initPortInfoList()
-{
-    int ret = gp_port_info_list_new(&m_portInfoList);
-    if (ret < GP_OK) {
-        qWarning() << "GPhoto: unable to create port info list";
+    ret = gp_abilities_list_count(m_cameraAbilitiesList);
+    if (ret < 0) {
+        qWarning() << "GPhoto: camera abilities list is empty";
         return;
     }
+}
 
-    ret = gp_port_info_list_load(m_portInfoList);
+void GPhotoFactory::updateDevices() const
+{
+    QMutexLocker locker(&m_mutex);
+
+    static QElapsedTimer camerasCacheAgeTimer;
+    if (camerasCacheAgeTimer.isValid() && camerasCacheAgeTimer.elapsed() > 1000) {
+      m_cameraDevices.clear();
+      m_cameraDescriptions.clear();
+      m_defaultCameraDevice.clear();
+    }
+
+    if (!m_cameraDevices.isEmpty())
+        return;
+
+    gp_port_info_list_free(m_portInfoList);
+    gp_port_info_list_new(&m_portInfoList);
+
+    int ret = gp_port_info_list_load(m_portInfoList);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to load port info list";
         return;
@@ -134,17 +146,9 @@ void GPhotoFactory::initPortInfoList()
         qWarning() << "GPhoto: port info list is empty";
         return;
     }
-}
-
-void GPhotoFactory::updateDevices() const
-{
-    QMutexLocker locker(&m_mutex);
-
-    if (!m_cameraDevices.isEmpty())
-        return;
 
     CameraList *cameraList;
-    int ret = gp_list_new(&cameraList);
+    ret = gp_list_new(&cameraList);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to create camera list";
         return;
@@ -195,6 +199,8 @@ void GPhotoFactory::updateDevices() const
 
     gp_list_free(cameraList);
 
-    if (!m_cameraDevices.isEmpty())
+    if (!m_cameraDevices.isEmpty()) {
         m_defaultCameraDevice = m_cameraDevices.first();
+        camerasCacheAgeTimer.restart();
+    }
 }

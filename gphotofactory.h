@@ -21,12 +21,11 @@ public:
 
 private:
     void initCameraAbilitiesList();
-    void initPortInfoList();
     void updateDevices() const;
 
     GPContext *const m_context;
     CameraAbilitiesList *m_cameraAbilitiesList;
-    GPPortInfoList *m_portInfoList;
+    mutable GPPortInfoList *m_portInfoList;
 
     mutable QMutex m_mutex;
     mutable QMap<QByteArray, QByteArray> m_cameraDevices;
