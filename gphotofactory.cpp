@@ -112,7 +112,7 @@ void GPhotoFactory::initCameraAbilitiesList()
     }
 
     ret = gp_abilities_list_count(m_cameraAbilitiesList);
-    if (ret < 0) {
+    if (ret < 1) {
         qWarning() << "GPhoto: camera abilities list is empty";
         return;
     }
@@ -142,7 +142,7 @@ void GPhotoFactory::updateDevices() const
     }
 
     ret = gp_port_info_list_count(m_portInfoList);
-    if (ret < 0) {
+    if (ret < 1) {
         qWarning() << "GPhoto: port info list is empty";
         return;
     }
@@ -162,7 +162,7 @@ void GPhotoFactory::updateDevices() const
     }
 
     const int cameraCount = gp_list_count(cameraList);
-    if (cameraCount < GP_OK) {
+    if (cameraCount < 1) {
         qDebug() << "GPhoto: camera not found";
         gp_list_free(cameraList);
         return;
