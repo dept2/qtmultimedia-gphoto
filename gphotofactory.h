@@ -6,6 +6,14 @@
 #include <QStringList>
 #include <gphoto2/gphoto2-camera.h>
 
+struct PortInfo
+{
+    PortInfo();
+
+    GPPortInfo portInfo;
+    GPPortInfoList *portInfoList;
+};
+
 class GPhotoFactory
 {
 public:
@@ -17,7 +25,7 @@ public:
     QByteArray defaultCameraDevice() const;
 
     CameraAbilities cameraAbilities(int cameraIndex, bool *ok = 0) const;
-    GPPortInfo portInfo(int cameraIndex, bool *ok = 0) const;
+    PortInfo portInfo(int cameraIndex, bool *ok = 0) const;
 
 private:
     void initCameraAbilitiesList();
@@ -25,7 +33,6 @@ private:
 
     GPContext *const m_context;
     CameraAbilitiesList *m_cameraAbilitiesList;
-    mutable GPPortInfoList *m_portInfoList;
 
     mutable QMutex m_mutex;
     mutable QMap<QByteArray, QByteArray> m_cameraDevices;

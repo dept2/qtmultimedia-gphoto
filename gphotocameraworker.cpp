@@ -41,7 +41,7 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent)
+GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const PortInfo &portInfo, QObject *parent)
     : QObject(parent)
     , m_abilities(abilities)
     , m_portInfo(portInfo)
@@ -58,6 +58,7 @@ GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const G
 GPhotoCameraWorker::~GPhotoCameraWorker()
 {
     closeCamera();
+    gp_port_info_list_free(m_portInfo.portInfoList);
     gp_context_unref(m_context);
 }
 
@@ -83,7 +84,7 @@ void GPhotoCameraWorker::openCamera()
         return;
     }
 
-    ret = gp_camera_set_port_info(m_camera, m_portInfo);
+    ret = gp_camera_set_port_info(m_camera, m_portInfo.portInfo);
     if (ret < GP_OK) {
         openCameraErrorHandle("Unable to set port info for camera");
         return;

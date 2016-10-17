@@ -3,10 +3,15 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
+PortInfo::PortInfo()
+  : portInfoList(0)
+{
+  gp_port_info_new(&portInfo);
+}
+
 GPhotoFactory::GPhotoFactory()
     : m_context(gp_context_new())
     , m_cameraAbilitiesList(0)
-    , m_portInfoList(0)
 {
     if (!m_context) {
         qWarning() << "Unable to create GPhoto context";
@@ -18,7 +23,6 @@ GPhotoFactory::GPhotoFactory()
 
 GPhotoFactory::~GPhotoFactory()
 {
-    gp_port_info_list_free(m_portInfoList);
     gp_abilities_list_free(m_cameraAbilitiesList);
     gp_context_unref(m_context);
 }
@@ -70,11 +74,11 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
     return abilities;
 }
 
-GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
+PortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
 {
     updateDevices();
-    GPPortInfo info;
-    gp_port_info_new(&info);
+
+    PortInfo info;
 
     if (m_cameraDevices.isEmpty()) {
         if (ok) *ok = false;
@@ -82,17 +86,36 @@ GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
     }
 
     QMutexLocker locker(&m_mutex);
-    const QByteArray cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
-    const int port = gp_port_info_list_lookup_path(m_portInfoList, cameraDescription.data());
-    if (port < GP_OK) {
-        qWarning() << "GPhoto: unable to find camera port";
+    gp_port_info_list_new(&info.portInfoList);
+    int ret = gp_port_info_list_load(info.portInfoList);
+    if (ret < GP_OK) {
+        qWarning() << "GPhoto: unable to load port info list";
+        gp_port_info_list_free(info.portInfoList);
         if (ok) *ok = false;
         return info;
     }
 
-    const int ret = gp_port_info_list_get_info(m_portInfoList, port, &info);
+    ret = gp_port_info_list_count(info.portInfoList);
+    if (ret < 1) {
+        qWarning() << "GPhoto: port info list is empty";
+        gp_port_info_list_free(info.portInfoList);
+        if (ok) *ok = false;
+        return info;
+    }
+
+    const QByteArray cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
+    const int port = gp_port_info_list_lookup_path(info.portInfoList, cameraDescription.data());
+    if (port < GP_OK) {
+        qWarning() << "GPhoto: unable to find camera port";
+        gp_port_info_list_free(info.portInfoList);
+        if (ok) *ok = false;
+        return info;
+    }
+
+    ret = gp_port_info_list_get_info(info.portInfoList, port, &info.portInfo);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to get camera port info";
+        gp_port_info_list_free(info.portInfoList);
         if (ok) *ok = false;
         return info;
     }
@@ -132,18 +155,20 @@ void GPhotoFactory::updateDevices() const
     if (!m_cameraDevices.isEmpty())
         return;
 
-    gp_port_info_list_free(m_portInfoList);
-    gp_port_info_list_new(&m_portInfoList);
+    GPPortInfoList *portInfoList;
+    gp_port_info_list_new(&portInfoList);
 
-    int ret = gp_port_info_list_load(m_portInfoList);
+    int ret = gp_port_info_list_load(portInfoList);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to load port info list";
+        gp_port_info_list_free(portInfoList);
         return;
     }
 
-    ret = gp_port_info_list_count(m_portInfoList);
+    ret = gp_port_info_list_count(portInfoList);
     if (ret < 1) {
         qWarning() << "GPhoto: port info list is empty";
+        gp_port_info_list_free(portInfoList);
         return;
     }
 
@@ -151,20 +176,22 @@ void GPhotoFactory::updateDevices() const
     ret = gp_list_new(&cameraList);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to create camera list";
+        gp_port_info_list_free(portInfoList);
         return;
     }
 
-    ret = gp_abilities_list_detect(m_cameraAbilitiesList, m_portInfoList, cameraList, m_context);
+    ret = gp_abilities_list_detect(m_cameraAbilitiesList, portInfoList, cameraList, m_context);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to detect abilities list";
         gp_list_free(cameraList);
+        gp_port_info_list_free(portInfoList);
         return;
     }
 
     const int cameraCount = gp_list_count(cameraList);
     if (cameraCount < 1) {
-        qDebug() << "GPhoto: camera not found";
         gp_list_free(cameraList);
+        gp_port_info_list_free(portInfoList);
         return;
     }
 
@@ -184,7 +211,7 @@ void GPhotoFactory::updateDevices() const
             continue;
         }
 
-        qDebug() << "GPhoto: found" << name << "at port" << description;
+        //qDebug() << "GPhoto: found" << name << "at port" << description;
 
         QString deviceName = name;
         if (deviceNameIndexes.contains(deviceName))
@@ -198,6 +225,7 @@ void GPhotoFactory::updateDevices() const
     }
 
     gp_list_free(cameraList);
+    gp_port_info_list_free(portInfoList);
 
     if (!m_cameraDevices.isEmpty()) {
         m_defaultCameraDevice = m_cameraDevices.first();

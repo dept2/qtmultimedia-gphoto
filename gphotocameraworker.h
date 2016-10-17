@@ -4,13 +4,14 @@
 #include <QObject>
 #include <gphoto2/gphoto2-camera.h>
 #include "gphotocamerasession.h"
+#include "gphotofactory.h"
 
 
 class GPhotoCameraWorker : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent = 0);
+    GPhotoCameraWorker(const CameraAbilities &abilities, const PortInfo &portInfo, QObject *parent = 0);
     ~GPhotoCameraWorker();
 
 signals:
@@ -35,7 +36,7 @@ public slots:
 
 private:
     const CameraAbilities m_abilities;
-    const GPPortInfo m_portInfo;
+    const PortInfo m_portInfo;
     GPContext *const m_context;
     Camera *m_camera;
     CameraFile *m_file;

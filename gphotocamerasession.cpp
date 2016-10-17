@@ -312,7 +312,7 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
         if (!ok) return 0;
 
         ok = false;
-        const GPPortInfo portInfo = m_factory->portInfo(cameraIndex, &ok);
+        const PortInfo portInfo = m_factory->portInfo(cameraIndex, &ok);
         if (!ok) return 0;
 
         GPhotoCameraWorker *worker = new GPhotoCameraWorker(abilities, portInfo);
