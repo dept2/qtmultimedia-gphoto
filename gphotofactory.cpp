@@ -3,11 +3,25 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
+
 PortInfo::PortInfo()
-  : portInfoList(0)
 {
   gp_port_info_new(&portInfo);
 }
+
+struct PortList
+{
+    PortList() { gp_port_info_list_new(&data); }
+    ~PortList() { gp_port_info_list_free(data); }
+    GPPortInfoList *data;
+};
+
+struct CamList
+{
+    CamList() { gp_list_new(&data); }
+    ~CamList() { gp_list_free(data); }
+    CameraList *data;
+};
 
 GPhotoFactory::GPhotoFactory()
     : m_context(gp_context_new())
@@ -55,7 +69,7 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
         return abilities;
     }
 
-    const QByteArray cameraDevice = m_cameraDevices.values().at(cameraIndex);
+    const QByteArray &cameraDevice = m_cameraDevices.values().at(cameraIndex);
     const int abilitiesIndex = gp_abilities_list_lookup_model(m_cameraAbilitiesList, cameraDevice.data());
     if (abilitiesIndex < GP_OK) {
         qWarning() << "GPhoto: unable to find camera abilities";
@@ -103,7 +117,7 @@ PortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
         return info;
     }
 
-    const QByteArray cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
+    const QByteArray &cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
     const int port = gp_port_info_list_lookup_path(info.portInfoList, cameraDescription.data());
     if (port < GP_OK) {
         qWarning() << "GPhoto: unable to find camera port";
@@ -155,57 +169,41 @@ void GPhotoFactory::updateDevices() const
     if (!m_cameraDevices.isEmpty())
         return;
 
-    GPPortInfoList *portInfoList;
-    gp_port_info_list_new(&portInfoList);
-
-    int ret = gp_port_info_list_load(portInfoList);
+    PortList portInfoList;
+    int ret = gp_port_info_list_load(portInfoList.data);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to load port info list";
-        gp_port_info_list_free(portInfoList);
         return;
     }
 
-    ret = gp_port_info_list_count(portInfoList);
+    ret = gp_port_info_list_count(portInfoList.data);
     if (ret < 1) {
         qWarning() << "GPhoto: port info list is empty";
-        gp_port_info_list_free(portInfoList);
         return;
     }
 
-    CameraList *cameraList;
-    ret = gp_list_new(&cameraList);
-    if (ret < GP_OK) {
-        qWarning() << "GPhoto: unable to create camera list";
-        gp_port_info_list_free(portInfoList);
-        return;
-    }
-
-    ret = gp_abilities_list_detect(m_cameraAbilitiesList, portInfoList, cameraList, m_context);
+    CamList cameraList;
+    ret = gp_abilities_list_detect(m_cameraAbilitiesList, portInfoList.data, cameraList.data, m_context);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to detect abilities list";
-        gp_list_free(cameraList);
-        gp_port_info_list_free(portInfoList);
         return;
     }
 
-    const int cameraCount = gp_list_count(cameraList);
-    if (cameraCount < 1) {
-        gp_list_free(cameraList);
-        gp_port_info_list_free(portInfoList);
+    const int cameraCount = gp_list_count(cameraList.data);
+    if (cameraCount < 1)
         return;
-    }
 
     QMap<QString, int> deviceNameIndexes;
     for (int i = 0; i < cameraCount; ++i) {
         const char *name, *description;
 
-        ret = gp_list_get_name(cameraList, i, &name);
+        ret = gp_list_get_name(cameraList.data, i, &name);
         if (ret < GP_OK) {
             qWarning() << "GPhoto: unable to get camera name";
             continue;
         }
 
-        ret = gp_list_get_value(cameraList, i, &description);
+        ret = gp_list_get_value(cameraList.data, i, &description);
         if (ret < GP_OK) {
             qWarning() << "GPhoto: unable to get camera description";
             continue;
@@ -223,9 +221,6 @@ void GPhotoFactory::updateDevices() const
         m_cameraDevices.insert(deviceName.toUtf8(), QByteArray(name));
         m_cameraDescriptions.append(QString::fromLatin1(description));
     }
-
-    gp_list_free(cameraList);
-    gp_port_info_list_free(portInfoList);
 
     if (!m_cameraDevices.isEmpty()) {
         m_defaultCameraDevice = m_cameraDevices.first();

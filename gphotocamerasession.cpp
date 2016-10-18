@@ -219,7 +219,7 @@ void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData,
             downScaleSteps++;
         }
 
-        const QImage snapPreview = image.scaled(previewSize);
+        const QImage &snapPreview = image.scaled(previewSize);
         emit imageCaptured(id, snapPreview);
     }
 
@@ -263,7 +263,7 @@ void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData,
                 emit imageCaptureError(id, QCameraImageCapture::OutOfSpaceError, file.errorString());
             }
         } else {
-            const QString errorMessage = tr("Could not open destination file:\n%1").arg(actualFileName);
+            const QString &errorMessage = tr("Could not open destination file:\n%1").arg(actualFileName);
             emit imageCaptureError(id, QCameraImageCapture::ResourceError, errorMessage);
         }
     }
@@ -308,11 +308,11 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
         Q_ASSERT(m_factory);
 
         bool ok = false;
-        const CameraAbilities abilities = m_factory->cameraAbilities(cameraIndex, &ok);
+        const CameraAbilities &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
         if (!ok) return 0;
 
         ok = false;
-        const PortInfo portInfo = m_factory->portInfo(cameraIndex, &ok);
+        const PortInfo &portInfo = m_factory->portInfo(cameraIndex, &ok);
         if (!ok) return 0;
 
         GPhotoCameraWorker *worker = new GPhotoCameraWorker(abilities, portInfo);
