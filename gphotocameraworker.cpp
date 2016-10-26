@@ -183,6 +183,10 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 {
     QByteArray result;
 
+    // Focusing
+    if (parameter("autofocusdrive").isValid())
+      setParameter("autofocusdrive", true);
+
     // Capture the frame from camera
     CameraFilePath filePath;
     int ret = gp_camera_capture(m_camera, GP_CAPTURE_IMAGE, &filePath, m_context);
@@ -255,13 +259,23 @@ QVariant GPhotoCameraWorker::parameter(const QString &name)
     if (type == GP_WIDGET_RADIO) {
         char *value;
         ret = gp_widget_get_value(option, &value);
-
         if (ret < GP_OK) {
-            qWarning() << "Unable to get parameter value from gphoto";
+            qWarning() << "Unable to get value for option" << qPrintable(name) << "from gphoto";
             return QVariant();
         } else {
             return QString::fromLocal8Bit(value);
         }
+    } else if (type == GP_WIDGET_TOGGLE) {
+        int value;
+        ret = gp_widget_get_value(option, &value);
+        if (ret < GP_OK) {
+            qWarning() << "Unable to get value for option" << qPrintable(name) << "from gphoto";
+            return QVariant();
+        } else {
+            return value == 0 ? false : true;
+        }
+    } else {
+        qWarning() << "Options of type" << type << "are currently not supported";
     }
 
     return QVariant();
@@ -280,7 +294,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     CameraWidget *option;
     ret = gp_widget_get_child_by_name(root, qPrintable(name), &option);
     if (ret < GP_OK) {
-        qWarning() << "Unable to get option" << name << "from gphoto";
+        qWarning() << "Unable to get option" << qPrintable(name) << "from gphoto";
         return false;
     }
 
@@ -386,6 +400,30 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
             gp_widget_free(option);
             return false;
         }
+    } else if (type == GP_WIDGET_TOGGLE) {
+        int v = 0;
+        if (value.canConvert<int>()) {
+            v = value.toInt();
+        } else {
+            qWarning() << "Failed to set value" << value << "to" << name << "option. Type" << value.type()
+                       << "is not supported";
+            gp_widget_free(option);
+            return false;
+        }
+
+        ret = gp_widget_set_value(option, &v);
+        if (ret < GP_OK) {
+          qWarning() << "Failed to set value" << v << "to" << name << "option:" << ret;
+          return false;
+        }
+
+        ret = gp_camera_set_config(m_camera, root, m_context);
+        if (ret < GP_OK) {
+          qWarning() << "Failed to set config to camera";
+          return false;
+        }
+
+        return true;
     } else {
         qWarning() << "Options of type" << type << "are currently not supported";
     }
