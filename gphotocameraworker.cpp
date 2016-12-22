@@ -96,6 +96,11 @@ void GPhotoCameraWorker::openCamera()
         return;
     }
 
+    if (parameter("viewfinder").isValid()) {
+        if (!setParameter("viewfinder", true))
+            qWarning() << "Failed to flap up camera mirror";
+    }
+
     m_capturingFailCount = 0;
     m_status = QCamera::LoadedStatus;
     emit statusChanged(m_status);
@@ -184,8 +189,13 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
     QByteArray result;
 
     // Focusing
-    if (parameter("autofocusdrive").isValid())
-      setParameter("autofocusdrive", true);
+    if (parameter("viewfinder").isValid()) {
+        if (!setParameter("viewfinder", false))
+            qWarning() << "Failed to flap down camera mirror";
+    } else {
+        if (parameter("autofocusedrive").isValid())
+            setParameter("autofocusedrive", true);
+    }
 
     // Capture the frame from camera
     CameraFilePath filePath;
@@ -230,6 +240,11 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
                 qWarning("Unexpected event received from camera: %d\n", (int)type);
             }
         }
+    }
+
+    if (parameter("viewfinder").isValid()) {
+        if (!setParameter("viewfinder", true))
+            qWarning() << "Failed to flap up camera mirror";
     }
 }
 
@@ -324,6 +339,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                 return false;
             }
 
+            waitForOperationCompleted();
             return true;
         } else if (value.type() == QVariant::Double) {
             // Trying to find nearest possible value (with the distance of 0.1) and set it to property
@@ -355,6 +371,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                         return false;
                     }
 
+                    waitForOperationCompleted();
                     return true;
                 }
             }
@@ -388,6 +405,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                         return false;
                     }
 
+                    waitForOperationCompleted();
                     return true;
                 }
             }
@@ -423,6 +441,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
           return false;
         }
 
+        waitForOperationCompleted();
         return true;
     } else {
         qWarning() << "Options of type" << type << "are currently not supported";
@@ -477,4 +496,15 @@ void GPhotoCameraWorker::logOption(const char *name)
     }
 
     gp_widget_free(option);
+}
+
+void GPhotoCameraWorker::waitForOperationCompleted()
+{
+  CameraEventType type;
+  void *data;
+  int ret;
+
+  do {
+    ret = gp_camera_wait_for_event(m_camera, 10, &type, &data, m_context);
+  } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT));
 }
