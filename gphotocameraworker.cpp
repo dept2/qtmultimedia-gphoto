@@ -162,6 +162,7 @@ void GPhotoCameraWorker::capturePreview()
         if (m_capturingFailCount >= capturingFailLimit)
         {
           qWarning() << "Closing camera because of capturing fail";
+          emit error(QCamera::CameraError, tr("Unable to capture frame"));
           m_status = QCamera::UnloadedStatus;
           emit statusChanged(m_status);
           closeCamera();
