@@ -68,8 +68,7 @@ void GPhotoCameraWorker::openCamera()
     if (m_camera)
         return;
 
-    m_status = QCamera::LoadingStatus;
-    emit statusChanged(m_status);
+    setStatus(QCamera::LoadingStatus);
 
     // Create camera object
     int ret = gp_camera_new(&m_camera);
@@ -102,8 +101,7 @@ void GPhotoCameraWorker::openCamera()
     }
 
     m_capturingFailCount = 0;
-    m_status = QCamera::LoadedStatus;
-    emit statusChanged(m_status);
+    setStatus(QCamera::LoadedStatus);
 }
 
 void GPhotoCameraWorker::closeCamera()
@@ -112,16 +110,13 @@ void GPhotoCameraWorker::closeCamera()
     if (!m_camera)
         return;
 
-    m_status = QCamera::UnloadingStatus;
-    emit statusChanged(m_status);
+    setStatus(QCamera::UnloadingStatus);
 
     // Close GPhoto camera session
     int ret = gp_camera_exit(m_camera, m_context);
     if (ret != GP_OK) {
-        m_status = QCamera::LoadedStatus;
-        emit statusChanged(m_status);
-
         qWarning() << "Unable to close camera";
+        setStatus(QCamera::LoadedStatus);
         emit error(QCamera::CameraError, tr("Unable to close camera"));
         return;
     }
@@ -130,16 +125,13 @@ void GPhotoCameraWorker::closeCamera()
     m_file = 0;
     gp_camera_free(m_camera);
     m_camera = 0;
-    m_status = QCamera::UnloadedStatus;
-    emit statusChanged(m_status);
+    setStatus(QCamera::UnloadedStatus);
 }
 
 void GPhotoCameraWorker::stopViewFinder()
 {
-    emit statusChanged(QCamera::StoppingStatus);
-
-    m_status = QCamera::LoadedStatus;
-    emit statusChanged(QCamera::LoadedStatus);
+    setStatus(QCamera::StoppingStatus);
+    setStatus(QCamera::LoadedStatus);
 }
 
 void GPhotoCameraWorker::capturePreview()
@@ -147,48 +139,40 @@ void GPhotoCameraWorker::capturePreview()
     openCamera();
 
     if (m_status != QCamera::ActiveStatus) {
-        m_status = QCamera::StartingStatus;
-        emit statusChanged(m_status);
+        setStatus(QCamera::StartingStatus);
     }
 
-    QImage result;
     gp_file_clean(m_file);
 
     int ret = gp_camera_capture_preview(m_camera, m_file, m_context);
-    if (ret < GP_OK) {
-        qWarning() << "Failed retrieving preview" << ret;
-        m_capturingFailCount++;
-
-        if (m_capturingFailCount >= capturingFailLimit)
-        {
-          qWarning() << "Closing camera because of capturing fail";
-          emit error(QCamera::CameraError, tr("Unable to capture frame"));
-          m_status = QCamera::UnloadedStatus;
-          emit statusChanged(m_status);
-          closeCamera();
-        }
-    } else {
-        m_capturingFailCount = 0;
+    if (GP_OK == ret) {
         const char* data;
         unsigned long int size = 0;
-
-        gp_file_get_data_and_size(m_file, &data, &size);
-        result.loadFromData(QByteArray(data, size));
-
-        if (m_status != QCamera::ActiveStatus) {
-            m_status = QCamera::ActiveStatus;
-            emit statusChanged(m_status);
+        ret = gp_file_get_data_and_size(m_file, &data, &size);
+        if (GP_OK == ret) {
+            m_capturingFailCount = 0;
+            const QImage &result = QImage::fromData(QByteArray(data, int(size)));
+            setStatus(QCamera::ActiveStatus);
+            emit previewCaptured(result);
+            return;
         }
-
     }
 
-    emit previewCaptured(result);
+    qWarning() << "Failed retrieving preview" << ret;
+    ++m_capturingFailCount;
+
+    if (m_capturingFailCount >= capturingFailLimit)
+    {
+      qWarning() << "Closing camera because of capturing fail";
+      emit error(QCamera::CameraError, tr("Unable to capture frame"));
+      setStatus(QCamera::UnloadedStatus);
+      closeCamera();
+    }
+
 }
 
 void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 {
-    QByteArray result;
-
     // Focusing
     if (parameter("viewfinder").isValid()) {
         if (!setParameter("viewfinder", false))
@@ -220,27 +204,17 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
             const char* data;
             unsigned long int size = 0;
 
-            gp_file_get_data_and_size(file, &data, &size);
-            result = QByteArray(data, size);
-            emit imageCaptured(id, result, fileName);
+            ret = gp_file_get_data_and_size(file, &data, &size);
+            if (ret < GP_OK) {
+                qWarning() << "Failed to get file data and size from camera:" << ret;
+                emit imageCaptureError(id, QCameraImageCapture::ResourceError, "Failed to download file from camera");
+            } else {
+                emit imageCaptured(id, QByteArray(data, int(size)), fileName);
+            }
         }
 
         gp_file_free(file);
-
-        while(1) {
-            CameraEventType type;
-            void* data;
-            ret = gp_camera_wait_for_event(m_camera, 100, &type, &data, m_context);
-            if(type == GP_EVENT_TIMEOUT) {
-                break;
-            }
-            else if (type == GP_EVENT_CAPTURE_COMPLETE) {
-//                qDebug("Capture completed\n");
-            }
-            else if (type != GP_EVENT_UNKNOWN) {
-                qWarning("Unexpected event received from camera: %d\n", (int)type);
-            }
-        }
+        waitForOperationCompleted();
     }
 
     if (parameter("viewfinder").isValid()) {
@@ -454,12 +428,11 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
 void GPhotoCameraWorker::openCameraErrorHandle(const QString& errorText)
 {
-  qWarning() << qPrintable(errorText);
-  m_status = QCamera::UnavailableStatus;
-  emit statusChanged(m_status);
-  emit error(QCamera::CameraError, tr("Unable to open camera"));
-  gp_camera_free(m_camera);
-  m_camera = 0;
+    qWarning() << qPrintable(errorText);
+    setStatus(QCamera::UnavailableStatus);
+    emit error(QCamera::CameraError, tr("Unable to open camera"));
+    gp_camera_free(m_camera);
+    m_camera = 0;
 }
 
 void GPhotoCameraWorker::logOption(const char *name)
@@ -501,11 +474,19 @@ void GPhotoCameraWorker::logOption(const char *name)
 
 void GPhotoCameraWorker::waitForOperationCompleted()
 {
-  CameraEventType type;
-  void *data;
-  int ret;
+    CameraEventType type;
+    void *data;
+    int ret;
 
-  do {
-    ret = gp_camera_wait_for_event(m_camera, 10, &type, &data, m_context);
-  } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT));
+    do {
+        ret = gp_camera_wait_for_event(m_camera, 10, &type, &data, m_context);
+    } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT));
+}
+
+void GPhotoCameraWorker::setStatus(QCamera::Status status)
+{
+    if (m_status != status) {
+        m_status = status;
+        emit statusChanged(status);
+    }
 }

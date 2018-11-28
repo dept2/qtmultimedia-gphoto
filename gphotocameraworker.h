@@ -47,6 +47,7 @@ private:
     void openCameraErrorHandle(const QString &errorText);
     void logOption(const char* name);
     void waitForOperationCompleted();
+    void setStatus(QCamera::Status status);
 };
 
 #endif // GPHOTOCAMERAWORKER_H
