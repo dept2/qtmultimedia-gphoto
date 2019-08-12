@@ -20,9 +20,8 @@ public:
     GPhotoFactory();
     ~GPhotoFactory();
 
-    QMap<QByteArray, QByteArray> cameraDevices() const;
-    QStringList cameraDescriptions() const;
-    QByteArray defaultCameraDevice() const;
+    QByteArrayList cameraNames() const;
+    QByteArray defaultCameraName() const;
 
     CameraAbilities cameraAbilities(int cameraIndex, bool *ok = 0) const;
     PortInfo portInfo(int cameraIndex, bool *ok = 0) const;
@@ -35,9 +34,10 @@ private:
     CameraAbilitiesList *m_cameraAbilitiesList;
 
     mutable QMutex m_mutex;
-    mutable QMap<QByteArray, QByteArray> m_cameraDevices;
-    mutable QStringList m_cameraDescriptions;
-    mutable QByteArray m_defaultCameraDevice;
+    mutable QByteArrayList m_paths;
+    mutable QByteArrayList m_models;
+    mutable QByteArrayList m_names;
+    mutable QByteArray m_defaultCameraName;
 };
 
 #endif // GPHOTOFACTORY_H

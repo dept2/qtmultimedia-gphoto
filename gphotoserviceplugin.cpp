@@ -29,7 +29,7 @@ void GPhotoServicePlugin::release(QMediaService *service)
 QByteArray GPhotoServicePlugin::defaultDevice(const QByteArray &service) const
 {
     if (service == Q_MEDIASERVICE_CAMERA)
-        return factory()->defaultCameraDevice();
+        return factory()->defaultCameraName();
     else
         return QByteArray();
 }
@@ -37,7 +37,7 @@ QByteArray GPhotoServicePlugin::defaultDevice(const QByteArray &service) const
 QList<QByteArray> GPhotoServicePlugin::devices(const QByteArray &service) const
 {
     if (service == Q_MEDIASERVICE_CAMERA)
-        return factory()->cameraDevices().keys();
+        return factory()->cameraNames();
     else
         return QList<QByteArray>();
 }
@@ -45,12 +45,7 @@ QList<QByteArray> GPhotoServicePlugin::devices(const QByteArray &service) const
 QString GPhotoServicePlugin::deviceDescription(const QByteArray &service, const QByteArray &device)
 {
     if (service == Q_MEDIASERVICE_CAMERA) {
-        const QByteArrayList& devices = factory()->cameraDevices().keys();
-        const int devicesCount = devices.count();
-        for (int i = 0; i < devicesCount; ++i) {
-            if (devices.at(i) == device)
-                return factory()->cameraDescriptions().at(i);
-        }
+        return device;
     }
 
     return QString();

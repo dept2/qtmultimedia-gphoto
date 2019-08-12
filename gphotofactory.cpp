@@ -41,22 +41,16 @@ GPhotoFactory::~GPhotoFactory()
     gp_context_unref(m_context);
 }
 
-QMap<QByteArray, QByteArray> GPhotoFactory::cameraDevices() const
+QByteArrayList GPhotoFactory::cameraNames() const
 {
     updateDevices();
-    return m_cameraDevices;
+    return m_names;
 }
 
-QStringList GPhotoFactory::cameraDescriptions() const
+QByteArray GPhotoFactory::defaultCameraName() const
 {
     updateDevices();
-    return m_cameraDescriptions;
-}
-
-QByteArray GPhotoFactory::defaultCameraDevice() const
-{
-    updateDevices();
-    return m_defaultCameraDevice;
+    return m_defaultCameraName;
 }
 
 CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
@@ -64,13 +58,13 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
     updateDevices();
     CameraAbilities abilities;
 
-    if (m_cameraDevices.isEmpty()) {
+    if (m_models.isEmpty()) {
         if (ok) *ok = false;
         return abilities;
     }
 
-    const QByteArray &cameraDevice = m_cameraDevices.values().at(cameraIndex);
-    const int abilitiesIndex = gp_abilities_list_lookup_model(m_cameraAbilitiesList, cameraDevice.data());
+    const QByteArray &model = m_models.at(cameraIndex);
+    const int abilitiesIndex = gp_abilities_list_lookup_model(m_cameraAbilitiesList, model.constData());
     if (abilitiesIndex < GP_OK) {
         qWarning() << "GPhoto: unable to find camera abilities";
         if (ok) *ok = false;
@@ -94,7 +88,7 @@ PortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
 
     PortInfo info;
 
-    if (m_cameraDevices.isEmpty()) {
+    if (m_names.isEmpty()) {
         if (ok) *ok = false;
         return info;
     }
@@ -117,8 +111,8 @@ PortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
         return info;
     }
 
-    const QByteArray &cameraDescription = m_cameraDescriptions.at(cameraIndex).toLatin1();
-    const int port = gp_port_info_list_lookup_path(info.portInfoList, cameraDescription.data());
+    const QByteArray &path = m_paths.at(cameraIndex);
+    const int port = gp_port_info_list_lookup_path(info.portInfoList, path.data());
     if (port < GP_OK) {
         qWarning() << "GPhoto: unable to find camera port";
         gp_port_info_list_free(info.portInfoList);
@@ -161,12 +155,13 @@ void GPhotoFactory::updateDevices() const
 
     static QElapsedTimer camerasCacheAgeTimer;
     if (camerasCacheAgeTimer.isValid() && camerasCacheAgeTimer.elapsed() > 1000) {
-      m_cameraDevices.clear();
-      m_cameraDescriptions.clear();
-      m_defaultCameraDevice.clear();
+      m_paths.clear();
+      m_models.clear();
+      m_names.clear();
+      m_defaultCameraName.clear();
     }
 
-    if (!m_cameraDevices.isEmpty())
+    if (!m_names.isEmpty())
         return;
 
     PortList portInfoList;
@@ -193,9 +188,9 @@ void GPhotoFactory::updateDevices() const
     if (cameraCount < 1)
         return;
 
-    QMap<QString, int> deviceNameIndexes;
+    QMap<QByteArray, int> displayNameIndexes;
     for (int i = 0; i < cameraCount; ++i) {
-        const char *name, *description;
+        const char *name, *path;
 
         ret = gp_list_get_name(cameraList.data, i, &name);
         if (ret < GP_OK) {
@@ -203,27 +198,27 @@ void GPhotoFactory::updateDevices() const
             continue;
         }
 
-        ret = gp_list_get_value(cameraList.data, i, &description);
+        ret = gp_list_get_value(cameraList.data, i, &path);
         if (ret < GP_OK) {
-            qWarning() << "GPhoto: unable to get camera description";
+            qWarning() << "GPhoto: unable to get camera path";
             continue;
         }
 
-        //qDebug() << "GPhoto: found" << name << "at port" << description;
-
-        QString deviceName = name;
-        if (deviceNameIndexes.contains(deviceName))
-            deviceName.append(QString(" (%1)").arg(++deviceNameIndexes[deviceName]));
+        QByteArray displayName = QByteArray(name);
+        if (displayNameIndexes.contains(name))
+            displayName.append(QString(" (%1)").arg(++displayNameIndexes[name]));
         else
-            deviceNameIndexes.insert(deviceName, 0);
+            displayNameIndexes.insert(displayName, 0);
 
+//        qDebug() << "GPhoto: found" << qPrintable(displayName) << "at path" << path;
 
-        m_cameraDevices.insert(deviceName.toUtf8(), QByteArray(name));
-        m_cameraDescriptions.append(QString::fromLatin1(description));
+        m_paths.append(QByteArray(path));
+        m_models.append(QByteArray(name));
+        m_names.append(displayName);
     }
 
-    if (!m_cameraDevices.isEmpty()) {
-        m_defaultCameraDevice = m_cameraDevices.first();
+    if (!m_names.isEmpty()) {
+        m_defaultCameraName = m_names.first();
         camerasCacheAgeTimer.restart();
     }
 }

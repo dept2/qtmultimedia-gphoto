@@ -15,19 +15,17 @@ GPhotoVideoInputDeviceControl::GPhotoVideoInputDeviceControl(GPhotoFactory *fact
 
 int GPhotoVideoInputDeviceControl::deviceCount() const
 {
-    return m_factory->cameraDevices().size();
+    return m_factory->cameraNames().size();
 }
 
 QString GPhotoVideoInputDeviceControl::deviceName(int index) const
 {
-    const QByteArrayList &devices = m_factory->cameraDevices().keys();
-    return QString::fromUtf8(devices.empty() ? "" : devices.at(index));
+    return m_factory->cameraNames().value(index);
 }
 
 QString GPhotoVideoInputDeviceControl::deviceDescription(int index) const
 {
-    const QStringList &descriptions = m_factory->cameraDescriptions();
-    return descriptions.isEmpty() ? "" : descriptions.at(index);
+    return m_factory->cameraNames().value(index);
 }
 
 int GPhotoVideoInputDeviceControl::defaultDevice() const
