@@ -110,15 +110,20 @@ void GPhotoCameraWorker::closeCamera()
     if (!m_camera)
         return;
 
+    if (m_status == QCamera::ActiveStatus)
+        stopViewFinder();
+
     setStatus(QCamera::UnloadingStatus);
+
+    // Pull down mirror on Canon camera when closing the camera: a workaround for gphoto failing to close the mirror on
+    // older cameras when calling gp_camera_exit
+    setParameter("viewfinder", false);
 
     // Close GPhoto camera session
     int ret = gp_camera_exit(m_camera, m_context);
     if (ret != GP_OK) {
-        qWarning() << "Unable to close camera";
-        setStatus(QCamera::LoadedStatus);
-        emit error(QCamera::CameraError, tr("Unable to close camera"));
-        return;
+        qWarning() << "Failed to close camera";
+        emit error(QCamera::CameraError, tr("Failed to close camera"));
     }
 
     gp_file_free(m_file);
@@ -126,6 +131,19 @@ void GPhotoCameraWorker::closeCamera()
     gp_camera_free(m_camera);
     m_camera = 0;
     setStatus(QCamera::UnloadedStatus);
+}
+
+void GPhotoCameraWorker::startViewFinder()
+{
+    openCamera();
+
+    if (m_status == QCamera::ActiveStatus)
+        return;
+
+    setStatus(QCamera::StartingStatus);
+    setStatus(QCamera::ActiveStatus);
+
+    capturePreview();
 }
 
 void GPhotoCameraWorker::stopViewFinder()
@@ -136,13 +154,10 @@ void GPhotoCameraWorker::stopViewFinder()
 
 void GPhotoCameraWorker::capturePreview()
 {
-    openCamera();
-
-    if (m_status != QCamera::ActiveStatus) {
-        setStatus(QCamera::StartingStatus);
-    }
-
     gp_file_clean(m_file);
+
+    if (m_status != QCamera::ActiveStatus)
+        return;
 
     int ret = gp_camera_capture_preview(m_camera, m_file, m_context);
     if (GP_OK == ret) {
@@ -152,7 +167,6 @@ void GPhotoCameraWorker::capturePreview()
         if (GP_OK == ret) {
             m_capturingFailCount = 0;
             const QImage &result = QImage::fromData(QByteArray(data, int(size)));
-            setStatus(QCamera::ActiveStatus);
             emit previewCaptured(result);
             return;
         }
@@ -165,10 +179,9 @@ void GPhotoCameraWorker::capturePreview()
     {
       qWarning() << "Closing camera because of capturing fail";
       emit error(QCamera::CameraError, tr("Unable to capture frame"));
-      setStatus(QCamera::UnloadedStatus);
+      setStatus(QCamera::UnloadingStatus);
       closeCamera();
     }
-
 }
 
 void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
@@ -178,8 +191,8 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
         if (!setParameter("viewfinder", false))
             qWarning() << "Failed to flap down camera mirror";
     } else {
-        if (parameter("autofocusedrive").isValid())
-            setParameter("autofocusedrive", true);
+        if (parameter("autofocusdrive").isValid())
+            setParameter("autofocusdrive", true);
     }
 
     // Capture the frame from camera

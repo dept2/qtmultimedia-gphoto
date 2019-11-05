@@ -26,6 +26,7 @@ signals:
 public slots:
     void openCamera();
     void closeCamera();
+    void startViewFinder();
     void stopViewFinder();
 
     void capturePreview();
