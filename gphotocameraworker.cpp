@@ -488,10 +488,9 @@ void GPhotoCameraWorker::logOption(const char *name)
 void GPhotoCameraWorker::waitForOperationCompleted()
 {
     CameraEventType type;
-    void *data;
     int ret;
-
     do {
+        void *data=nullptr;
         ret = gp_camera_wait_for_event(m_camera, 10, &type, &data, m_context);
         free(data);
     } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT));
