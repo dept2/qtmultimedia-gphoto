@@ -493,6 +493,7 @@ void GPhotoCameraWorker::waitForOperationCompleted()
 
     do {
         ret = gp_camera_wait_for_event(m_camera, 10, &type, &data, m_context);
+        free(data);
     } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT));
 }
 
