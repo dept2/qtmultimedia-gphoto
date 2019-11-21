@@ -18,17 +18,14 @@ GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent
 
 GPhotoCameraSession::~GPhotoCameraSession()
 {
-    for (auto worker : m_workers.values()) {
-        // Disconnect status change signals on app shutdown not to trigger connected (and possibly also
-        // dismantling) calling code
-        disconnect(worker, nullptr, this, nullptr);
-        QMetaObject::invokeMethod(worker, "closeCamera", Qt::BlockingQueuedConnection);
-    }
+    // Disconnect status change signals on app shutdown not to trigger connected (and possibly also
+    // dismantling) calling code
+    disconnect(m_currentWorker, nullptr, this, nullptr);
+    qDeleteAll(m_workers);
 
     // Stop working thread
     m_workerThread->quit();
     m_workerThread->wait();
-    qDeleteAll(m_workers);
 }
 
 QCamera::State GPhotoCameraSession::state() const
@@ -177,23 +174,28 @@ bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &valu
 
 void GPhotoCameraSession::setCamera(int cameraIndex)
 {
-    GPhotoCameraWorker *worker = getWorker(cameraIndex);
+    auto worker = getWorker(cameraIndex);
+
+    if (!worker) {
+        qWarning() << "Failed to set camera with index" << cameraIndex;
+        return;
+    }
 
     if (m_currentWorker != worker) {
         disconnect(worker, nullptr, this, nullptr);
 
-        connect(worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
-        connect(worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
-        connect(worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
-        connect(worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
-        connect(worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
+        connect(worker, &GPhotoCameraWorker::statusChanged, this, &GPhotoCameraSession::onWorkerStatusChanged);
+        connect(worker, &GPhotoCameraWorker::error, this, &GPhotoCameraSession::error);
+        connect(worker, &GPhotoCameraWorker::previewCaptured, this, &GPhotoCameraSession::onPreviewCaptured);
+        connect(worker, &GPhotoCameraWorker::imageCaptured, this, &GPhotoCameraSession::onImageDataCaptured);
+        connect(worker, &GPhotoCameraWorker::imageCaptureError, this, &GPhotoCameraSession::imageCaptureError);
 
         m_currentWorker = worker;
         m_setStateRequired = true;
     }
 }
 
-void GPhotoCameraSession::previewCaptured(const QImage &image)
+void GPhotoCameraSession::onPreviewCaptured(const QImage &image)
 {
     if (m_status == QCamera::ActiveStatus && m_surface && !image.isNull()) {
         if (m_surface->isActive() && image.size() != m_surface->surfaceFormat().frameSize())
@@ -211,7 +213,7 @@ void GPhotoCameraSession::previewCaptured(const QImage &image)
         QMetaObject::invokeMethod(m_currentWorker, "capturePreview", Qt::QueuedConnection);
 }
 
-void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData, const QString &fileName)
+void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageData, const QString &fileName)
 {
     QImage image = QImage::fromData(imageData);
     {
@@ -273,7 +275,7 @@ void GPhotoCameraSession::imageDataCaptured(int id, const QByteArray &imageData,
     }
 }
 
-void GPhotoCameraSession::workerStatusChanged(QCamera::Status status)
+void GPhotoCameraSession::onWorkerStatusChanged(QCamera::Status status)
 {
     if (status != m_status) {
         m_status = status;
@@ -302,19 +304,25 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
         Q_ASSERT(m_factory);
 
         bool ok = false;
-        const CameraAbilities &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
-        if (!ok) return nullptr;
 
-        ok = false;
-        const PortInfo &portInfo = m_factory->portInfo(cameraIndex, &ok);
-        if (!ok) return nullptr;
+        const auto &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
+        if (!ok) {
+            qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
+            return nullptr;
+        }
 
-        GPhotoCameraWorker *worker = new GPhotoCameraWorker(abilities, portInfo);
+        const auto &portInfo = m_factory->portInfo(cameraIndex, &ok);
+        if (!ok) {
+            qWarning() << "Unable to get port info for camera with index" << cameraIndex;
+            return nullptr;
+        }
+
+        auto worker = new GPhotoCameraWorker(m_factory->context(), abilities, portInfo);
         worker->moveToThread(m_workerThread);
 
         m_workers.insert(cameraIndex, worker);
         return worker;
     }
 
-    return m_workers[cameraIndex];
+    return m_workers.value(cameraIndex);
 }

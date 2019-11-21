@@ -12,7 +12,7 @@ using CaptureDestinations = QCameraImageCapture::CaptureDestinations;
 class GPhotoCameraWorker;
 class GPhotoFactory;
 
-class GPhotoCameraSession : public QObject
+class GPhotoCameraSession final : public QObject
 {
     Q_OBJECT
 public:
@@ -68,10 +68,9 @@ signals:
     void videoFrameProbed(const QVideoFrame &frame);
 
 private slots:
-    void previewCaptured(const QImage &image);
-    void imageDataCaptured(int id, const QByteArray &imageData, const QString &fileName);
-
-    void workerStatusChanged(QCamera::Status);
+    void onPreviewCaptured(const QImage &image);
+    void onImageDataCaptured(int id, const QByteArray &imageData, const QString &fileName);
+    void onWorkerStatusChanged(QCamera::Status);
 
 private:
     GPhotoCameraWorker* getWorker(int cameraIndex);

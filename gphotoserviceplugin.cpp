@@ -3,22 +3,18 @@
 #include "gphotofactory.h"
 
 GPhotoServicePlugin::GPhotoServicePlugin()
-  : m_factory(0)
-{
-}
+{}
 
 GPhotoServicePlugin::~GPhotoServicePlugin()
-{
-  delete m_factory;
-}
+{}
 
 QMediaService* GPhotoServicePlugin::create(const QString &key)
 {
     if (key == QLatin1String(Q_MEDIASERVICE_CAMERA))
         return new GPhotoMediaService(factory());
 
-    qWarning() << "GPhoto service plgin: unsupported key:" << key;
-    return 0;
+    qWarning() << "GPhoto service plugin: unsupported key:" << key;
+    return nullptr;
 }
 
 void GPhotoServicePlugin::release(QMediaService *service)
@@ -53,8 +49,14 @@ QString GPhotoServicePlugin::deviceDescription(const QByteArray &service, const 
 
 GPhotoFactory* GPhotoServicePlugin::factory() const
 {
-    if (!m_factory)
-        m_factory = new GPhotoFactory();
+    if (!m_factory) {
+        auto factory = std::unique_ptr<GPhotoFactory>(new GPhotoFactory);
+        if (!factory->init()) {
+            qWarning() << "GPhoto service plugin: unable to initialize GPhotoFactory";
+            return nullptr;
+        }
+        m_factory = std::move(factory);
+    }
 
-    return m_factory;
+    return m_factory.get();
 }

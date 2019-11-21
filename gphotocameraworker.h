@@ -6,12 +6,14 @@
 #include "gphotocamerasession.h"
 #include "gphotofactory.h"
 
+using CameraFilePtr = std::unique_ptr<CameraFile, int (*)(CameraFile*)>;
+using CameraPtr = std::unique_ptr<Camera, int (*)(Camera*)>;
 
-class GPhotoCameraWorker : public QObject
+class GPhotoCameraWorker final : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoCameraWorker(const CameraAbilities &abilities, const PortInfo &portInfo, QObject *parent = nullptr);
+    GPhotoCameraWorker(GPContext *context, CameraAbilities abilities, GPPortInfo portInfo, QObject *parent = nullptr);
     ~GPhotoCameraWorker();
 
 signals:
@@ -36,11 +38,11 @@ public slots:
     bool setParameter(const QString &name, const QVariant &value);
 
 private:
-    const CameraAbilities m_abilities;
-    const PortInfo m_portInfo;
     GPContext *const m_context;
-    Camera *m_camera = nullptr;
-    CameraFile *m_file = nullptr;
+    const CameraAbilities m_abilities;
+    const GPPortInfo m_portInfo;
+    CameraPtr m_camera;
+    CameraFilePtr m_file;
     int m_capturingFailCount = 0;
     QCamera::Status m_status = QCamera::UnloadedStatus;
 

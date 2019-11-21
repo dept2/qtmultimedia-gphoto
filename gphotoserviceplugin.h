@@ -1,11 +1,13 @@
 #ifndef GPHOTOSERVICEPLUGIN_H
 #define GPHOTOSERVICEPLUGIN_H
 
+#include <memory>
+
 #include <qmediaserviceproviderplugin.h>
 
 class GPhotoFactory;
 
-class GPhotoServicePlugin
+class GPhotoServicePlugin final
     : public QMediaServiceProviderPlugin
     , public QMediaServiceSupportedDevicesInterface
     , public QMediaServiceDefaultDeviceInterface
@@ -18,17 +20,17 @@ public:
     GPhotoServicePlugin();
     ~GPhotoServicePlugin();
 
-    QMediaService* create(const QString &key);
-    void release(QMediaService *service);
+    QMediaService* create(const QString &key) override;
+    void release(QMediaService *service) override;
 
-    QByteArray defaultDevice(const QByteArray &service) const;
-    QList<QByteArray> devices(const QByteArray &service) const;
-    QString deviceDescription(const QByteArray &service, const QByteArray &device);
+    QByteArray defaultDevice(const QByteArray &service) const override;
+    QList<QByteArray> devices(const QByteArray &service) const override;
+    QString deviceDescription(const QByteArray &service, const QByteArray &device) override;
 
 private:
     GPhotoFactory* factory() const;
 
-    mutable GPhotoFactory *m_factory;
+    mutable std::unique_ptr<GPhotoFactory> m_factory;
 };
 
 #endif // GPHOTOSERVICEPLUGIN_H

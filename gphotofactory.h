@@ -1,43 +1,53 @@
 #ifndef GPHOTOFACTORY_H
 #define GPHOTOFACTORY_H
 
+#include <memory>
+
+#include <QElapsedTimer>
 #include <QMap>
 #include <QMutex>
 #include <QStringList>
+
 #include <gphoto2/gphoto2-camera.h>
 
-struct PortInfo
-{
-    PortInfo();
+using CameraAbilitiesListPtr = std::unique_ptr<CameraAbilitiesList, int (*)(CameraAbilitiesList*)>;
+using CameraListPtr = std::unique_ptr<CameraList, int (*)(CameraList*)>;
+using GPContextPtr = std::unique_ptr<GPContext, void (*)(GPContext*)>;
+using GPPortInfoListPtr = std::unique_ptr<GPPortInfoList, int (*)(GPPortInfoList*)>;
 
-    GPPortInfo portInfo;
-    GPPortInfoList *portInfoList;
+struct Devices final
+{
+    Devices();
+
+    QByteArrayList paths;
+    QByteArrayList models;
+    QByteArrayList names;
+    QByteArray defaultCameraName;
+    GPPortInfoListPtr portInfoList;
+    QElapsedTimer cacheAgeTimer;
 };
 
-class GPhotoFactory
+class GPhotoFactory final
 {
 public:
     GPhotoFactory();
-    ~GPhotoFactory();
+
+    bool init();
 
     QByteArrayList cameraNames() const;
     QByteArray defaultCameraName() const;
 
-    CameraAbilities cameraAbilities(int cameraIndex, bool *ok = 0) const;
-    PortInfo portInfo(int cameraIndex, bool *ok = 0) const;
+    GPContext* context() const;
+    CameraAbilities cameraAbilities(int cameraIndex, bool *ok = nullptr) const;
+    GPPortInfo portInfo(int cameraIndex, bool *ok = nullptr) const;
 
 private:
-    void initCameraAbilitiesList();
     void updateDevices() const;
 
-    GPContext *const m_context;
-    CameraAbilitiesList *m_cameraAbilitiesList;
-
+    GPContextPtr m_context;
+    CameraAbilitiesListPtr m_abilitiesList;
+    mutable Devices m_devices;
     mutable QMutex m_mutex;
-    mutable QByteArrayList m_paths;
-    mutable QByteArrayList m_models;
-    mutable QByteArrayList m_names;
-    mutable QByteArray m_defaultCameraName;
 };
 
 #endif // GPHOTOFACTORY_H
