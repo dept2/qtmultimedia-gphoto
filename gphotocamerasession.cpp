@@ -305,19 +305,19 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
 
         bool ok = false;
 
-        const auto &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
+        auto abilities = m_factory->cameraAbilities(cameraIndex, &ok);
         if (!ok) {
             qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
             return nullptr;
         }
 
-        const auto &portInfo = m_factory->portInfo(cameraIndex, &ok);
+        auto portInfo = m_factory->portInfo(cameraIndex, &ok);
         if (!ok) {
             qWarning() << "Unable to get port info for camera with index" << cameraIndex;
             return nullptr;
         }
 
-        auto worker = new GPhotoCameraWorker(m_factory->context(), abilities, portInfo);
+        auto worker = new GPhotoCameraWorker(m_factory->context(), std::move(abilities), std::move(portInfo));
         worker->moveToThread(m_workerThread);
 
         m_workers.insert(cameraIndex, worker);
