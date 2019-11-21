@@ -11,7 +11,7 @@ class GPhotoCameraWorker : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoCameraWorker(const CameraAbilities &abilities, const PortInfo &portInfo, QObject *parent = 0);
+    GPhotoCameraWorker(const CameraAbilities &abilities, const PortInfo &portInfo, QObject *parent = nullptr);
     ~GPhotoCameraWorker();
 
 signals:
@@ -39,11 +39,10 @@ private:
     const CameraAbilities m_abilities;
     const PortInfo m_portInfo;
     GPContext *const m_context;
-    Camera *m_camera;
-    CameraFile *m_file;
-    int m_capturingFailCount;
-
-    QCamera::Status m_status;
+    Camera *m_camera = nullptr;
+    CameraFile *m_file = nullptr;
+    int m_capturingFailCount = 0;
+    QCamera::Status m_status = QCamera::UnloadedStatus;
 
     void openCameraErrorHandle(const QString &errorText);
     void logOption(const char* name);

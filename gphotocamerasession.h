@@ -7,6 +7,8 @@
 #include <QMap>
 #include <QPointer>
 
+using CaptureDestinations = QCameraImageCapture::CaptureDestinations;
+
 class GPhotoCameraWorker;
 class GPhotoFactory;
 
@@ -14,7 +16,7 @@ class GPhotoCameraSession : public QObject
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraSession(GPhotoFactory *factory, QObject *parent = 0);
+    explicit GPhotoCameraSession(GPhotoFactory *factory, QObject *parent = nullptr);
     ~GPhotoCameraSession();
 
     // camera control
@@ -27,7 +29,7 @@ public:
     void setCaptureMode(QCamera::CaptureModes captureMode);
 
     // destination control
-    bool isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations destination) const;
+    bool isCaptureDestinationSupported(CaptureDestinations destination) const;
     QCameraImageCapture::CaptureDestinations captureDestination() const;
     void setCaptureDestination(QCameraImageCapture::CaptureDestinations destination);
 
@@ -72,25 +74,19 @@ private slots:
     void workerStatusChanged(QCamera::Status);
 
 private:
-    void stopViewFinder();
     GPhotoCameraWorker* getWorker(int cameraIndex);
 
     GPhotoFactory *const m_factory;
-
-    QCamera::State m_state;
-    QCamera::Status m_status;
-    QCamera::CaptureModes m_captureMode;
-
-    QCameraImageCapture::CaptureDestinations m_captureDestination;
-
+    QThread *const m_workerThread;
+    QCamera::State m_state = QCamera::UnloadedState;
+    QCamera::Status m_status = QCamera::UnloadedStatus;
+    QCamera::CaptureModes m_captureMode = QCamera::CaptureStillImage;
+    CaptureDestinations m_captureDestination = QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile;
     QPointer<QAbstractVideoSurface> m_surface;
-
-    QThread *m_workerThread;
     QMap<int, GPhotoCameraWorker*> m_workers;
-    GPhotoCameraWorker *m_currentWorker;
-    bool m_setStateRequired;
-
-    int m_lastImageCaptureId;
+    GPhotoCameraWorker *m_currentWorker = nullptr;
+    int m_lastImageCaptureId = 0;
+    bool m_setStateRequired = false;
 };
 
 #endif // GPHOTOCAMERASESSION_H

@@ -11,15 +11,7 @@
 GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent)
     : QObject(parent)
     , m_factory(factory)
-    , m_state(QCamera::UnloadedState)
-    , m_status(QCamera::UnloadedStatus)
-    , m_captureMode(QCamera::CaptureStillImage)
-    , m_captureDestination(QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile)
-    , m_surface(0)
     , m_workerThread(new QThread(this))
-    , m_currentWorker(0)
-    , m_setStateRequired(false)
-    , m_lastImageCaptureId(0)
 {
     m_workerThread->start();
 }
@@ -30,7 +22,7 @@ GPhotoCameraSession::~GPhotoCameraSession()
         // Disconnect status change signals on app shutdown not to trigger connected (and possibly also
         // dismantling) calling code
         disconnect(worker, nullptr, this, nullptr);
-        QMetaObject::invokeMethod(m_currentWorker, "closeCamera", Qt::BlockingQueuedConnection);
+        QMetaObject::invokeMethod(worker, "closeCamera", Qt::BlockingQueuedConnection);
     }
 
     // Stop working thread
@@ -78,14 +70,12 @@ void GPhotoCameraSession::setState(QCamera::State state)
         }
     } else if (previousState == QCamera::ActiveState) {
         if (state == QCamera::UnloadedState) {
-            stopViewFinder();
             QMetaObject::invokeMethod(m_currentWorker, "closeCamera", Qt::QueuedConnection);
         } else if (state == QCamera::LoadedState) {
-            stopViewFinder();
+            QMetaObject::invokeMethod(m_currentWorker, "stopViewFinder", Qt::QueuedConnection);
         }
     }
 }
-
 
 QCamera::Status GPhotoCameraSession::status() const
 {
@@ -116,7 +106,7 @@ void GPhotoCameraSession::setCaptureMode(QCamera::CaptureModes captureMode)
     emit captureModeChanged(m_captureMode);
 }
 
-bool GPhotoCameraSession::isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations /*destination*/) const
+bool GPhotoCameraSession::isCaptureDestinationSupported(CaptureDestinations /*destination*/) const
 {
     return true;
 }
@@ -188,7 +178,16 @@ bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &valu
 void GPhotoCameraSession::setCamera(int cameraIndex)
 {
     GPhotoCameraWorker *worker = getWorker(cameraIndex);
+
     if (m_currentWorker != worker) {
+        disconnect(worker, nullptr, this, nullptr);
+
+        connect(worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
+        connect(worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
+        connect(worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
+        connect(worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
+        connect(worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
+
         m_currentWorker = worker;
         m_setStateRequired = true;
     }
@@ -297,16 +296,6 @@ void GPhotoCameraSession::workerStatusChanged(QCamera::Status status)
     }
 }
 
-void GPhotoCameraSession::stopViewFinder()
-{
-    m_status = QCamera::StoppingStatus;
-
-    if (m_surface)
-        m_surface->stop();
-
-    QMetaObject::invokeMethod(m_currentWorker, "stopViewFinder", Qt::QueuedConnection);
-}
-
 GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
 {
     if (!m_workers.contains(cameraIndex)) {
@@ -314,20 +303,14 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
 
         bool ok = false;
         const CameraAbilities &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
-        if (!ok) return 0;
+        if (!ok) return nullptr;
 
         ok = false;
         const PortInfo &portInfo = m_factory->portInfo(cameraIndex, &ok);
-        if (!ok) return 0;
+        if (!ok) return nullptr;
 
         GPhotoCameraWorker *worker = new GPhotoCameraWorker(abilities, portInfo);
         worker->moveToThread(m_workerThread);
-
-        connect(worker, SIGNAL(statusChanged(QCamera::Status)), SLOT(workerStatusChanged(QCamera::Status)));
-        connect(worker, SIGNAL(error(int,QString)), SIGNAL(error(int,QString)));
-        connect(worker, SIGNAL(previewCaptured(QImage)), SLOT(previewCaptured(QImage)));
-        connect(worker, SIGNAL(imageCaptured(int,QByteArray,QString)), SLOT(imageDataCaptured(int,QByteArray,QString)));
-        connect(worker, SIGNAL(imageCaptureError(int,int,QString)), SIGNAL(imageCaptureError(int,int,QString)));
 
         m_workers.insert(cameraIndex, worker);
         return worker;

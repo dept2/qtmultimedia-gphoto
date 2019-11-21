@@ -46,10 +46,6 @@ GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const P
     , m_abilities(abilities)
     , m_portInfo(portInfo)
     , m_context(gp_context_new())
-    , m_camera(0)
-    , m_file(0)
-    , m_capturingFailCount(0)
-    , m_status(QCamera::UnloadedStatus)
 {
     if (!m_context)
         m_status = QCamera::UnavailableStatus;
@@ -127,9 +123,9 @@ void GPhotoCameraWorker::closeCamera()
     }
 
     gp_file_free(m_file);
-    m_file = 0;
+    m_file = nullptr;
     gp_camera_free(m_camera);
-    m_camera = 0;
+    m_camera = nullptr;
     setStatus(QCamera::UnloadedStatus);
 }
 
@@ -148,6 +144,9 @@ void GPhotoCameraWorker::startViewFinder()
 
 void GPhotoCameraWorker::stopViewFinder()
 {
+  if (m_status == QCamera::LoadedStatus)
+      return;
+
     setStatus(QCamera::StoppingStatus);
     setStatus(QCamera::LoadedStatus);
 }
@@ -179,7 +178,6 @@ void GPhotoCameraWorker::capturePreview()
     {
       qWarning() << "Closing camera because of capturing fail";
       emit error(QCamera::CameraError, tr("Unable to capture frame"));
-      setStatus(QCamera::UnloadingStatus);
       closeCamera();
     }
 }
@@ -241,7 +239,7 @@ QVariant GPhotoCameraWorker::parameter(const QString &name)
     CameraWidget *root;
     int ret = gp_camera_get_config(m_camera, &root, m_context);
     if (ret < GP_OK) {
-        qWarning() << "Unable to get root option from gphoto";
+        qWarning() << "Unable to get root option from gphoto while getting parameter" << qPrintable(name);
         return QVariant();
     }
 
@@ -289,7 +287,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     CameraWidget *root;
     int ret = gp_camera_get_config(m_camera, &root, m_context);
     if (ret < GP_OK) {
-        qWarning() << "Unable to get root option from gphoto";
+        qWarning() << "Unable to get root option from gphoto while setting parameter" << qPrintable(name);
         return false;
     }
 
@@ -445,7 +443,7 @@ void GPhotoCameraWorker::openCameraErrorHandle(const QString& errorText)
     setStatus(QCamera::UnavailableStatus);
     emit error(QCamera::CameraError, tr("Unable to open camera"));
     gp_camera_free(m_camera);
-    m_camera = 0;
+    m_camera = nullptr;
 }
 
 void GPhotoCameraWorker::logOption(const char *name)
@@ -469,6 +467,8 @@ void GPhotoCameraWorker::logOption(const char *name)
 
     char *value;
     ret = gp_widget_get_value(option, &value);
+    if (ret < GP_OK)
+        qWarning() << "Unable to get widget value from gphoto";
 
     qDebug() << "Option" << type << name << value;
     if (type == GP_WIDGET_RADIO) {
