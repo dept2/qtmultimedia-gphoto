@@ -13,8 +13,12 @@ class GPhotoCameraWorker final : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoCameraWorker(GPContext *context, CameraAbilities abilities, GPPortInfo portInfo, QObject *parent = nullptr);
+    GPhotoCameraWorker(GPContext *context, const CameraAbilities &abilities,
+                       const GPPortInfo &portInfo, QObject *parent = nullptr);
     ~GPhotoCameraWorker();
+
+    GPhotoCameraWorker(GPhotoCameraWorker&&) = delete;
+    GPhotoCameraWorker&operator=(GPhotoCameraWorker&&) = delete;
 
 signals:
     void statusChanged(QCamera::Status);
@@ -38,9 +42,11 @@ public slots:
     bool setParameter(const QString &name, const QVariant &value);
 
 private:
+    Q_DISABLE_COPY(GPhotoCameraWorker)
+
     GPContext *const m_context;
     const CameraAbilities m_abilities;
-    const GPPortInfo m_portInfo;
+    GPPortInfo m_portInfo;
     CameraPtr m_camera;
     CameraFilePtr m_file;
     int m_capturingFailCount = 0;

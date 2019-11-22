@@ -7,7 +7,6 @@
 
 GPhotoVideoInputDeviceControl::GPhotoVideoInputDeviceControl(GPhotoFactory *factory, GPhotoCameraSession *session, QObject *parent)
     : QVideoDeviceSelectorControl(parent)
-    , m_selectedDevice(-1)
     , m_factory(factory)
     , m_session(session)
 {

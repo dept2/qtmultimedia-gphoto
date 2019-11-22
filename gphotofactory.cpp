@@ -13,7 +13,8 @@ Devices::Devices()
 GPhotoFactory::GPhotoFactory()
     : m_context(nullptr, gp_context_unref)
     , m_abilitiesList(nullptr, gp_abilities_list_free)
-{}
+{
+}
 
 bool GPhotoFactory::init()
 {
@@ -43,7 +44,7 @@ bool GPhotoFactory::init()
     return true;
 }
 
-QByteArrayList GPhotoFactory::cameraNames() const
+QList<QByteArray> GPhotoFactory::cameraNames() const
 {
     updateDevices();
     return m_devices.names;

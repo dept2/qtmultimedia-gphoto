@@ -20,6 +20,9 @@ public:
     GPhotoServicePlugin();
     ~GPhotoServicePlugin();
 
+    GPhotoServicePlugin(GPhotoServicePlugin&&) = delete;
+    GPhotoServicePlugin& operator=(GPhotoServicePlugin&&) = delete;
+
     QMediaService* create(const QString &key) override;
     void release(QMediaService *service) override;
 
@@ -28,6 +31,8 @@ public:
     QString deviceDescription(const QByteArray &service, const QByteArray &device) override;
 
 private:
+    Q_DISABLE_COPY(GPhotoServicePlugin)
+
     GPhotoFactory* factory() const;
 
     mutable std::unique_ptr<GPhotoFactory> m_factory;

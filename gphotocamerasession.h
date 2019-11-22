@@ -1,6 +1,8 @@
 #ifndef GPHOTOCAMERASESSION_H
 #define GPHOTOCAMERASESSION_H
 
+#include <memory>
+
 #include <QAbstractVideoSurface>
 #include <QCamera>
 #include <QCameraImageCapture>
@@ -18,6 +20,9 @@ class GPhotoCameraSession final : public QObject
 public:
     explicit GPhotoCameraSession(GPhotoFactory *factory, QObject *parent = nullptr);
     ~GPhotoCameraSession();
+
+    GPhotoCameraSession(GPhotoCameraSession&&) = delete;
+    GPhotoCameraSession& operator=(GPhotoCameraSession&&) = delete;
 
     // camera control
     QCamera::State state() const;
@@ -73,10 +78,12 @@ private slots:
     void onWorkerStatusChanged(QCamera::Status);
 
 private:
+    Q_DISABLE_COPY(GPhotoCameraSession)
+
     GPhotoCameraWorker* getWorker(int cameraIndex);
 
     GPhotoFactory *const m_factory;
-    QThread *const m_workerThread;
+    std::unique_ptr<QThread> m_workerThread;
     QCamera::State m_state = QCamera::UnloadedState;
     QCamera::Status m_status = QCamera::UnloadedStatus;
     QCamera::CaptureModes m_captureMode = QCamera::CaptureStillImage;

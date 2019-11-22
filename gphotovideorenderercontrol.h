@@ -5,17 +5,23 @@
 
 class GPhotoCameraSession;
 
-class GPhotoVideoRendererControl : public QVideoRendererControl
+class GPhotoVideoRendererControl final : public QVideoRendererControl
 {
     Q_OBJECT
 public:
-    explicit GPhotoVideoRendererControl(GPhotoCameraSession *session, QObject *parent = 0);
+    explicit GPhotoVideoRendererControl(GPhotoCameraSession *session, QObject *parent = nullptr);
 
-    QAbstractVideoSurface* surface() const Q_DECL_OVERRIDE;
-    void setSurface(QAbstractVideoSurface *surface) Q_DECL_OVERRIDE;
+    GPhotoVideoRendererControl(GPhotoVideoRendererControl&&) = delete;
+    GPhotoVideoRendererControl& operator=(GPhotoVideoRendererControl&&) = delete;
+    ~GPhotoVideoRendererControl() = default;
+
+    QAbstractVideoSurface* surface() const override;
+    void setSurface(QAbstractVideoSurface *surface) override;
 
 private:
-    GPhotoCameraSession *m_session;
+    Q_DISABLE_COPY(GPhotoVideoRendererControl)
+
+    GPhotoCameraSession *const m_session;
 };
 
 #endif // GPHOTOVIDEORENDERERCONTROL_H

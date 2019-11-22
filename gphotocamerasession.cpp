@@ -11,7 +11,7 @@
 GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent)
     : QObject(parent)
     , m_factory(factory)
-    , m_workerThread(new QThread(this))
+    , m_workerThread(new QThread)
 {
     m_workerThread->start();
 }
@@ -81,12 +81,7 @@ QCamera::Status GPhotoCameraSession::status() const
 
 bool GPhotoCameraSession::isCaptureModeSupported(QCamera::CaptureModes mode) const
 {
-    if (mode == QCamera::CaptureViewfinder)
-        return true;
-    else if (mode == QCamera::CaptureStillImage)
-        return true;
-
-    return false;
+    return (mode == QCamera::CaptureViewfinder || mode == QCamera::CaptureStillImage);
 }
 
 QCamera::CaptureModes GPhotoCameraSession::captureMode() const
@@ -305,20 +300,20 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
 
         bool ok = false;
 
-        auto abilities = m_factory->cameraAbilities(cameraIndex, &ok);
+        const auto &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
         if (!ok) {
             qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
             return nullptr;
         }
 
-        auto portInfo = m_factory->portInfo(cameraIndex, &ok);
+        const auto &portInfo = m_factory->portInfo(cameraIndex, &ok);
         if (!ok) {
             qWarning() << "Unable to get port info for camera with index" << cameraIndex;
             return nullptr;
         }
 
-        auto worker = new GPhotoCameraWorker(m_factory->context(), std::move(abilities), std::move(portInfo));
-        worker->moveToThread(m_workerThread);
+        auto worker = new GPhotoCameraWorker(m_factory->context(), abilities, portInfo);
+        worker->moveToThread(m_workerThread.get());
 
         m_workers.insert(cameraIndex, worker);
         return worker;

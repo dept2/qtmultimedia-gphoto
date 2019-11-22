@@ -19,9 +19,9 @@ struct Devices final
 {
     Devices();
 
-    QByteArrayList paths;
-    QByteArrayList models;
-    QByteArrayList names;
+    QList<QByteArray> paths;
+    QList<QByteArray> models;
+    QList<QByteArray> names;
     QByteArray defaultCameraName;
     GPPortInfoListPtr portInfoList;
     QElapsedTimer cacheAgeTimer;
@@ -34,7 +34,7 @@ public:
 
     bool init();
 
-    QByteArrayList cameraNames() const;
+    QList<QByteArray> cameraNames() const;
     QByteArray defaultCameraName() const;
 
     GPContext* context() const;

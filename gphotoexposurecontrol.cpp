@@ -20,18 +20,14 @@ QVariant GPhotoExposureControl::actualValue(QCameraExposureControl::ExposurePara
         // We use a workaround for flawed russian i18n of gphoto2 strings
         bool ok;
         double result = value.toString().replace(',', '.').toDouble(&ok);
+        return ok ? QVariant(result) : QVariant();
+    }
 
-        if (ok)
-            return result;
-        else
-            return QVariant();
-    } else if (parameter == ISO) {
+    if (parameter == ISO) {
         bool ok;
         int iso = m_session->parameter("iso").toInt(&ok);
-        if (ok)
-            return iso;
-        else
-            return QVariant(); // Invalid QVariant for Auto ISO
+        // Invalid QVariant for Auto ISO
+        return ok ? QVariant(iso) : QVariant();
     }
 
     return QVariant();
@@ -122,7 +118,7 @@ void GPhotoExposureControl::stateChanged(QCamera::State state)
 
             QMetaEnum parameter = metaObject()->enumerator(metaObject()->indexOfEnumerator("ExposureParameter"));
             for (int i = 0; i < parameter.keyCount(); ++i) {
-                ExposureParameter p = ExposureParameter(parameter.value(i));
+                auto p = ExposureParameter(parameter.value(i));
 
                 if (isParameterSupported(p)) {
                     // Set all parameters requested on start to session object

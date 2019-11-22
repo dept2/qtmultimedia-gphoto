@@ -2,11 +2,15 @@
 #include "gphotomediaservice.h"
 #include "gphotofactory.h"
 
+#include <QDebug>
+
 GPhotoServicePlugin::GPhotoServicePlugin()
-{}
+{
+}
 
 GPhotoServicePlugin::~GPhotoServicePlugin()
-{}
+{
+}
 
 QMediaService* GPhotoServicePlugin::create(const QString &key)
 {
@@ -24,27 +28,17 @@ void GPhotoServicePlugin::release(QMediaService *service)
 
 QByteArray GPhotoServicePlugin::defaultDevice(const QByteArray &service) const
 {
-    if (service == Q_MEDIASERVICE_CAMERA)
-        return factory()->defaultCameraName();
-    else
-        return QByteArray();
+    return (service == Q_MEDIASERVICE_CAMERA) ? factory()->defaultCameraName() : QByteArray();
 }
 
 QList<QByteArray> GPhotoServicePlugin::devices(const QByteArray &service) const
 {
-    if (service == Q_MEDIASERVICE_CAMERA)
-        return factory()->cameraNames();
-    else
-        return QList<QByteArray>();
+    return (service == Q_MEDIASERVICE_CAMERA) ? factory()->cameraNames() : QList<QByteArray>();
 }
 
 QString GPhotoServicePlugin::deviceDescription(const QByteArray &service, const QByteArray &device)
 {
-    if (service == Q_MEDIASERVICE_CAMERA) {
-        return device;
-    }
-
-    return QString();
+    return (service == Q_MEDIASERVICE_CAMERA) ? device : QString();
 }
 
 GPhotoFactory* GPhotoServicePlugin::factory() const

@@ -1,37 +1,31 @@
 #ifndef GPHOTOMEDIASERVICE_H
 #define GPHOTOMEDIASERVICE_H
 
+#include <memory>
+
 #include <QMediaService>
 
 class GPhotoCameraSession;
-class GPhotoCameraControl;
-class GPhotoVideoRendererControl;
-class GPhotoCameraImageCaptureControl;
-class GPhotoCameraCaptureDestinationControl;
-class GPhotoVideoProbeControl;
-class GPhotoExposureControl;
 class GPhotoFactory;
-class GPhotoVideoInputDeviceControl;
 
-class GPhotoMediaService : public QMediaService
+class GPhotoMediaService final : public QMediaService
 {
     Q_OBJECT
-
 public:
-    explicit GPhotoMediaService(GPhotoFactory *factory, QObject *parent = 0);
+    explicit GPhotoMediaService(GPhotoFactory *factory, QObject *parent = nullptr);
+    ~GPhotoMediaService();
 
-    QMediaControl* requestControl(const char *name);
-    void releaseControl(QMediaControl *control);
+    GPhotoMediaService(GPhotoMediaService&&) = delete;
+    GPhotoMediaService& operator=(GPhotoMediaService&&) = delete;
+
+    QMediaControl* requestControl(const char *name) override;
+    void releaseControl(QMediaControl *control) override;
 
 private:
-    GPhotoCameraSession *m_session;
-    GPhotoCameraControl *m_cameraControl;
-    GPhotoVideoRendererControl *m_videoRendererControl;
-    GPhotoCameraImageCaptureControl *m_imageCaptureControl;
-    GPhotoCameraCaptureDestinationControl *m_destinationControl;
-    GPhotoVideoProbeControl *m_videoProbeControl;
-    GPhotoExposureControl *m_exposureControl;
-    GPhotoVideoInputDeviceControl *m_videoInputDeviceControl;
+    Q_DISABLE_COPY(GPhotoMediaService)
+
+    GPhotoFactory *const m_factory;
+    std::unique_ptr<GPhotoCameraSession> m_session;
 };
 
 #endif // GPHOTOMEDIASERVICE_H

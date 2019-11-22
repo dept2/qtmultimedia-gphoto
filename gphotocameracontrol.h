@@ -5,26 +5,31 @@
 
 class GPhotoCameraSession;
 
-class GPhotoCameraControl : public QCameraControl
+class GPhotoCameraControl final : public QCameraControl
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraControl(GPhotoCameraSession *session, QObject *parent = 0);
+    explicit GPhotoCameraControl(GPhotoCameraSession *session, QObject *parent = nullptr);
 
-    QCamera::State state() const Q_DECL_OVERRIDE;
-    void setState(QCamera::State state) Q_DECL_OVERRIDE;
+    GPhotoCameraControl(GPhotoCameraControl&&) = delete;
+    GPhotoCameraControl& operator=(GPhotoCameraControl&&) = delete;
+    ~GPhotoCameraControl() = default;
 
-    QCamera::Status status() const Q_DECL_OVERRIDE;
+    QCamera::State state() const override;
+    void setState(QCamera::State state) override;
 
-    bool isCaptureModeSupported(QCamera::CaptureModes mode) const Q_DECL_OVERRIDE;
-    QCamera::CaptureModes captureMode() const Q_DECL_OVERRIDE;
-    void setCaptureMode(QCamera::CaptureModes captureMode) Q_DECL_OVERRIDE;
+    QCamera::Status status() const override;
 
-    bool canChangeProperty(PropertyChangeType changeType, QCamera::Status status) const;
+    bool isCaptureModeSupported(QCamera::CaptureModes mode) const override;
+    QCamera::CaptureModes captureMode() const override;
+    void setCaptureMode(QCamera::CaptureModes captureMode) override;
+
+    bool canChangeProperty(PropertyChangeType changeType, QCamera::Status status) const override;
 
 private:
-    GPhotoCameraSession *m_session;
+    Q_DISABLE_COPY(GPhotoCameraControl)
 
+    GPhotoCameraSession *const m_session;
 };
 
 #endif // GPHOTOCAMERACONTROL_H

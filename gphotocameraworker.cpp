@@ -43,11 +43,11 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(GPContext *context, CameraAbilities abilities, GPPortInfo portInfo, QObject *parent)
+GPhotoCameraWorker::GPhotoCameraWorker(GPContext *context, const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent)
     : QObject(parent)
     , m_context(context)
-    , m_abilities(std::move(abilities))
-    , m_portInfo(std::move(portInfo))
+    , m_abilities(abilities)
+    , m_portInfo(portInfo)
     , m_camera(nullptr, gp_camera_free)
     , m_file(nullptr, gp_file_free)
 {
@@ -268,22 +268,21 @@ QVariant GPhotoCameraWorker::parameter(const QString &name)
         if (ret < GP_OK) {
             qWarning() << "Unable to get value for option" << qPrintable(name) << "from gphoto";
             return QVariant();
-        } else {
-            return QString::fromLocal8Bit(value);
         }
-    } else if (type == GP_WIDGET_TOGGLE) {
+        return QString::fromLocal8Bit(value);
+    }
+
+    if (type == GP_WIDGET_TOGGLE) {
         int value;
         ret = gp_widget_get_value(option, &value);
         if (ret < GP_OK) {
             qWarning() << "Unable to get value for option" << qPrintable(name) << "from gphoto";
             return QVariant();
-        } else {
-            return value == 0 ? false : true;
         }
-    } else {
-        qWarning() << "Options of type" << type << "are currently not supported";
+        return value != 0;
     }
 
+    qWarning() << "Options of type" << type << "are currently not supported";
     return QVariant();
 }
 
@@ -334,7 +333,9 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
             waitForOperationCompleted();
             return true;
-        } else if (value.type() == QVariant::Double) {
+        }
+
+        if (value.type() == QVariant::Double) {
             // Trying to find nearest possible value (with the distance of 0.1) and set it to property
             double v = value.toDouble();
 
@@ -371,7 +372,9 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
             qWarning() << "Can't find value matching to" << v << "for option" << name;
             return false;
-        } else if (value.type() == QVariant::Int) {
+        }
+
+        if (value.type() == QVariant::Int) {
             // Little hacks for 'ISO' option: if the value is -1, we pick the first non-integer value
             // we found and set it as a parameter
             int v = value.toInt();
@@ -405,12 +408,14 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
             qWarning() << "Can't find value matching to" << v << "for option" << name;
             return false;
-        } else {
-            qWarning() << "Failed to set value" << value << "to" << name << "option. Type" << value.type()
-                       << "is not supported";
-            return false;
         }
-    } else if (type == GP_WIDGET_TOGGLE) {
+
+        qWarning() << "Failed to set value" << value << "to" << name << "option. Type" << value.type()
+                   << "is not supported";
+        return false;
+    }
+
+    if (type == GP_WIDGET_TOGGLE) {
         int v = 0;
         if (value.canConvert<int>()) {
             v = value.toInt();
@@ -434,10 +439,9 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
         waitForOperationCompleted();
         return true;
-    } else {
-        qWarning() << "Options of type" << type << "are currently not supported";
     }
 
+    qWarning() << "Options of type" << type << "are currently not supported";
     return false;
 }
 

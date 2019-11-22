@@ -5,18 +5,24 @@
 
 class GPhotoCameraSession;
 
-class GPhotoCameraCaptureDestinationControl : public QCameraCaptureDestinationControl
+class GPhotoCameraCaptureDestinationControl final : public QCameraCaptureDestinationControl
 {
     Q_OBJECT
 public:
-    explicit GPhotoCameraCaptureDestinationControl(GPhotoCameraSession *session, QObject *parent = 0);
+    explicit GPhotoCameraCaptureDestinationControl(GPhotoCameraSession *session, QObject *parent = nullptr);
 
-    bool isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations destination) const Q_DECL_OVERRIDE;
-    QCameraImageCapture::CaptureDestinations captureDestination() const Q_DECL_OVERRIDE;
-    void setCaptureDestination(QCameraImageCapture::CaptureDestinations destination) Q_DECL_OVERRIDE;
+    GPhotoCameraCaptureDestinationControl(GPhotoCameraCaptureDestinationControl&&) = delete;
+    GPhotoCameraCaptureDestinationControl& operator=(GPhotoCameraCaptureDestinationControl&&) = delete;
+    ~GPhotoCameraCaptureDestinationControl() = default;
+
+    bool isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations destination) const override;
+    QCameraImageCapture::CaptureDestinations captureDestination() const override;
+    void setCaptureDestination(QCameraImageCapture::CaptureDestinations destination) override;
 
 private:
-    GPhotoCameraSession *m_session;
+    Q_DISABLE_COPY(GPhotoCameraCaptureDestinationControl)
+
+    GPhotoCameraSession *const m_session;
 };
 
 #endif // GPHOTOCAMERACAPTUREDESTINATIONCONTROL_H
