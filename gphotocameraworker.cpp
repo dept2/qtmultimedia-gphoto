@@ -43,16 +43,14 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(GPContext *context, const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent)
+GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent)
     : QObject(parent)
-    , m_context(context)
     , m_abilities(abilities)
     , m_portInfo(portInfo)
+    , m_context(nullptr, gp_context_unref)
     , m_camera(nullptr, gp_camera_free)
     , m_file(nullptr, gp_file_free)
 {
-    if (!m_context)
-        m_status = QCamera::UnavailableStatus;
 }
 
 GPhotoCameraWorker::~GPhotoCameraWorker()
@@ -93,6 +91,7 @@ void GPhotoCameraWorker::openCamera()
     CameraFile *file;
     gp_file_new(&file);
     m_file.reset(file);
+    m_context.reset(gp_context_new());
     m_camera = std::move(cameraPtr);
     m_capturingFailCount = 0;
 
@@ -120,7 +119,7 @@ void GPhotoCameraWorker::closeCamera()
     setParameter("viewfinder", false);
 
     // Close GPhoto camera session
-    int ret = gp_camera_exit(m_camera.get(), m_context);
+    int ret = gp_camera_exit(m_camera.get(), m_context.get());
     if (ret != GP_OK) {
         qWarning() << "Failed to close camera";
         emit error(QCamera::CameraError, tr("Failed to close camera"));
@@ -128,6 +127,7 @@ void GPhotoCameraWorker::closeCamera()
 
     m_file.reset();
     m_camera.reset();
+    m_context.reset();
 
     setStatus(QCamera::UnloadedStatus);
 }
@@ -161,7 +161,7 @@ void GPhotoCameraWorker::capturePreview()
     if (m_status != QCamera::ActiveStatus)
         return;
 
-    int ret = gp_camera_capture_preview(m_camera.get(), m_file.get(), m_context);
+    int ret = gp_camera_capture_preview(m_camera.get(), m_file.get(), m_context.get());
     if (GP_OK == ret) {
         const char* data;
         unsigned long int size = 0;
@@ -197,7 +197,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 
     // Capture the frame from camera
     CameraFilePath filePath;
-    int ret = gp_camera_capture(m_camera.get(), GP_CAPTURE_IMAGE, &filePath, m_context);
+    int ret = gp_camera_capture(m_camera.get(), GP_CAPTURE_IMAGE, &filePath, m_context.get());
 
     if (ret < GP_OK) {
         qWarning() << "Failed to capture frame:" << ret;
@@ -212,7 +212,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
         // Unique pointer will free memory on exit
         auto filePtr = CameraFilePtr(file, gp_file_free);
 
-        ret = gp_camera_file_get(m_camera.get(), filePath.folder, filePath.name, GP_FILE_TYPE_NORMAL, file, m_context);
+        ret = gp_camera_file_get(m_camera.get(), filePath.folder, filePath.name, GP_FILE_TYPE_NORMAL, file, m_context.get());
 
         if (ret < GP_OK) {
             qWarning() << "Failed to get file from camera:" << ret;
@@ -242,7 +242,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 QVariant GPhotoCameraWorker::parameter(const QString &name)
 {
     CameraWidget *root;
-    int ret = gp_camera_get_config(m_camera.get(), &root, m_context);
+    int ret = gp_camera_get_config(m_camera.get(), &root, m_context.get());
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto while getting parameter" << qPrintable(name);
         return QVariant();
@@ -289,7 +289,7 @@ QVariant GPhotoCameraWorker::parameter(const QString &name)
 bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value)
 {
     CameraWidget *root;
-    int ret = gp_camera_get_config(m_camera.get(), &root, m_context);
+    int ret = gp_camera_get_config(m_camera.get(), &root, m_context.get());
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto while setting parameter" << qPrintable(name);
         return false;
@@ -324,7 +324,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                 return false;
             }
 
-            ret = gp_camera_set_config(m_camera.get(), root, m_context);
+            ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
 
             if (ret < GP_OK) {
                 qWarning() << "Failed to set config to camera";
@@ -359,7 +359,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                         return false;
                     }
 
-                    ret = gp_camera_set_config(m_camera.get(), root, m_context);
+                    ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
                     if (ret < GP_OK) {
                         qWarning() << "Failed to set config to camera";
                         return false;
@@ -395,7 +395,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                         return false;
                     }
 
-                    ret = gp_camera_set_config(m_camera.get(), root, m_context);
+                    ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
                     if (ret < GP_OK) {
                         qWarning() << "Failed to set config to camera";
                         return false;
@@ -431,7 +431,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
           return false;
         }
 
-        ret = gp_camera_set_config(m_camera.get(), root, m_context);
+        ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
         if (ret < GP_OK) {
           qWarning() << "Failed to set config to camera";
           return false;
@@ -455,7 +455,7 @@ void GPhotoCameraWorker::openCameraErrorHandle(const QString& errorText)
 void GPhotoCameraWorker::logOption(const char *name)
 {
     CameraWidget *root;
-    int ret = gp_camera_get_config(m_camera.get(), &root, m_context);
+    int ret = gp_camera_get_config(m_camera.get(), &root, m_context.get());
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto";
         return;
@@ -498,7 +498,7 @@ void GPhotoCameraWorker::waitForOperationCompleted()
     int ret;
     do {
         void *data = nullptr;
-        ret = gp_camera_wait_for_event(m_camera.get(), 10, &type, &data, m_context);
+        ret = gp_camera_wait_for_event(m_camera.get(), 10, &type, &data, m_context.get());
         free(data);
     } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT) && m_camera);
 }

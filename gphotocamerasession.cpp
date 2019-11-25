@@ -312,7 +312,7 @@ GPhotoCameraWorker* GPhotoCameraSession::getWorker(int cameraIndex)
             return nullptr;
         }
 
-        auto worker = new GPhotoCameraWorker(m_factory->context(), abilities, portInfo);
+        auto worker = new GPhotoCameraWorker(abilities, portInfo);
         worker->moveToThread(m_workerThread.get());
 
         m_workers.insert(cameraIndex, worker);

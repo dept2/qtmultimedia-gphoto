@@ -8,13 +8,13 @@
 
 using CameraFilePtr = std::unique_ptr<CameraFile, int (*)(CameraFile*)>;
 using CameraPtr = std::unique_ptr<Camera, int (*)(Camera*)>;
+using GPContextPtr = std::unique_ptr<GPContext, void (*)(GPContext*)>;
 
 class GPhotoCameraWorker final : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoCameraWorker(GPContext *context, const CameraAbilities &abilities,
-                       const GPPortInfo &portInfo, QObject *parent = nullptr);
+    GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent = nullptr);
     ~GPhotoCameraWorker();
 
     GPhotoCameraWorker(GPhotoCameraWorker&&) = delete;
@@ -44,9 +44,9 @@ public slots:
 private:
     Q_DISABLE_COPY(GPhotoCameraWorker)
 
-    GPContext *const m_context;
     const CameraAbilities m_abilities;
     GPPortInfo m_portInfo;
+    GPContextPtr m_context;
     CameraPtr m_camera;
     CameraFilePtr m_file;
     int m_capturingFailCount = 0;
