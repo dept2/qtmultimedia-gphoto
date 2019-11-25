@@ -80,7 +80,7 @@ private slots:
 private:
     Q_DISABLE_COPY(GPhotoCameraSession)
 
-    GPhotoCameraWorker* getWorker(int cameraIndex);
+    std::shared_ptr<GPhotoCameraWorker> getWorker(int cameraIndex);
 
     GPhotoFactory *const m_factory;
     std::unique_ptr<QThread> m_workerThread;
@@ -89,8 +89,8 @@ private:
     QCamera::CaptureModes m_captureMode = QCamera::CaptureStillImage;
     CaptureDestinations m_captureDestination = QCameraImageCapture::CaptureToBuffer | QCameraImageCapture::CaptureToFile;
     QPointer<QAbstractVideoSurface> m_surface;
-    QMap<int, GPhotoCameraWorker*> m_workers;
-    GPhotoCameraWorker *m_currentWorker = nullptr;
+    QMap<int, std::shared_ptr<GPhotoCameraWorker>> m_workers;
+    std::shared_ptr<GPhotoCameraWorker> m_currentWorker;
     int m_lastImageCaptureId = 0;
     bool m_setStateRequired = false;
 };
