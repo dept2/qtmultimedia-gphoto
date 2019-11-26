@@ -58,100 +58,40 @@ GPhotoCameraWorker::~GPhotoCameraWorker()
     closeCamera();
 }
 
-void GPhotoCameraWorker::openCamera()
+void GPhotoCameraWorker::setState(QCamera::State state)
 {
-    // Camera is already open
-    if (m_camera)
+    if (m_state == state)
         return;
 
-    setStatus(QCamera::LoadingStatus);
+    auto previousState = m_state;
 
-    // Create camera object
-    Camera *camera;
-    int ret = gp_camera_new(&camera);
-    if (ret != GP_OK) {
-        openCameraErrorHandle("Unable to open camera");
-        return;
+    if (previousState == QCamera::UnloadedState) {
+        if (state == QCamera::LoadedState) {
+            openCamera();
+        } else if (state == QCamera::ActiveState) {
+            startViewFinder();
+        }
+    } else if (previousState == QCamera::LoadedState) {
+        if (state == QCamera::UnloadedState) {
+            closeCamera();
+        } else if (state == QCamera::ActiveState) {
+            startViewFinder();
+        }
+    } else if (previousState == QCamera::ActiveState) {
+        if (state == QCamera::UnloadedState) {
+            closeCamera();
+        } else if (state == QCamera::LoadedState) {
+            stopViewFinder();
+        }
     }
-
-    auto cameraPtr = CameraPtr(camera, gp_camera_free);
-
-    ret = gp_camera_set_abilities(camera, m_abilities);
-    if (ret < GP_OK) {
-        openCameraErrorHandle("Unable to set abilities for camera");
-        return;
-    }
-
-    ret = gp_camera_set_port_info(camera, m_portInfo);
-    if (ret < GP_OK) {
-        openCameraErrorHandle("Unable to set port info for camera");
-        return;
-    }
-
-    CameraFile *file;
-    gp_file_new(&file);
-    m_file.reset(file);
-    m_context.reset(gp_context_new());
-    m_camera = std::move(cameraPtr);
-    m_capturingFailCount = 0;
-
-    if (parameter("viewfinder").isValid()) {
-        if (!setParameter("viewfinder", true))
-            qWarning() << "Failed to flap up camera mirror";
-    }
-
-    setStatus(QCamera::LoadedStatus);
 }
 
-void GPhotoCameraWorker::closeCamera()
+void GPhotoCameraWorker::setCaptureMode(QCamera::CaptureModes captureMode)
 {
-    // Camera is already closed
-    if (!m_camera)
-        return;
-
-    if (m_status == QCamera::ActiveStatus)
-        stopViewFinder();
-
-    setStatus(QCamera::UnloadingStatus);
-
-    // Pull down mirror on Canon camera when closing the camera: a workaround for gphoto failing to close the mirror on
-    // older cameras when calling gp_camera_exit
-    setParameter("viewfinder", false);
-
-    // Close GPhoto camera session
-    int ret = gp_camera_exit(m_camera.get(), m_context.get());
-    if (ret != GP_OK) {
-        qWarning() << "Failed to close camera";
-        emit error(QCamera::CameraError, tr("Failed to close camera"));
+    if (m_captureMode != captureMode) {
+        m_captureMode = captureMode;
+        emit captureModeChanged(captureMode);
     }
-
-    m_file.reset();
-    m_camera.reset();
-    m_context.reset();
-
-    setStatus(QCamera::UnloadedStatus);
-}
-
-void GPhotoCameraWorker::startViewFinder()
-{
-    openCamera();
-
-    if (m_status == QCamera::ActiveStatus)
-        return;
-
-    setStatus(QCamera::StartingStatus);
-    setStatus(QCamera::ActiveStatus);
-
-    capturePreview();
-}
-
-void GPhotoCameraWorker::stopViewFinder()
-{
-  if (m_status == QCamera::LoadedStatus)
-      return;
-
-    setStatus(QCamera::StoppingStatus);
-    setStatus(QCamera::LoadedStatus);
 }
 
 void GPhotoCameraWorker::capturePreview()
@@ -187,6 +127,11 @@ void GPhotoCameraWorker::capturePreview()
 
 void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 {
+    if (!isReadyForCapture()) {
+        emit imageCaptureError(id, QCameraImageCapture::NotReadyError, "Camera is not ready");
+        return;
+    }
+
     // Focusing
     if (parameter("viewfinder").isValid()) {
         if (!setParameter("viewfinder", false))
@@ -445,6 +390,114 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     return false;
 }
 
+void GPhotoCameraWorker::openCamera()
+{
+    // Camera is already open
+    if (m_camera)
+        return;
+
+    setStatus(QCamera::LoadingStatus);
+
+    // Create camera object
+    Camera *camera;
+    int ret = gp_camera_new(&camera);
+    if (ret != GP_OK) {
+        openCameraErrorHandle("Unable to open camera");
+        return;
+    }
+
+    auto cameraPtr = CameraPtr(camera, gp_camera_free);
+
+    ret = gp_camera_set_abilities(camera, m_abilities);
+    if (ret < GP_OK) {
+        openCameraErrorHandle("Unable to set abilities for camera");
+        return;
+    }
+
+    ret = gp_camera_set_port_info(camera, m_portInfo);
+    if (ret < GP_OK) {
+        openCameraErrorHandle("Unable to set port info for camera");
+        return;
+    }
+
+    CameraFile *file;
+    gp_file_new(&file);
+    m_file.reset(file);
+    m_context.reset(gp_context_new());
+    m_camera = std::move(cameraPtr);
+    m_capturingFailCount = 0;
+
+    if (parameter("viewfinder").isValid()) {
+        if (!setParameter("viewfinder", true))
+            qWarning() << "Failed to flap up camera mirror";
+    }
+
+    setStatus(QCamera::LoadedStatus);
+}
+
+void GPhotoCameraWorker::closeCamera()
+{
+    // Camera is already closed
+    if (!m_camera)
+        return;
+
+    if (m_status == QCamera::ActiveStatus)
+        stopViewFinder();
+
+    setStatus(QCamera::UnloadingStatus);
+
+    // Pull down mirror on Canon camera when closing the camera:
+    // a workaround for gphoto failing to close the mirror on
+    // older cameras when calling gp_camera_exit
+    if (parameter("viewfinder").isValid()) {
+        if (!setParameter("viewfinder", false))
+            qWarning() << "Failed to flap down camera mirror";
+    }
+
+    // Close GPhoto camera session
+    int ret = gp_camera_exit(m_camera.get(), m_context.get());
+    if (ret != GP_OK) {
+        qWarning() << "Failed to close camera";
+        emit error(QCamera::CameraError, tr("Failed to close camera"));
+    }
+
+    m_file.reset();
+    m_camera.reset();
+    m_context.reset();
+
+    setStatus(QCamera::UnloadedStatus);
+}
+
+void GPhotoCameraWorker::startViewFinder()
+{
+    openCamera();
+
+    if (m_status == QCamera::ActiveStatus)
+        return;
+
+    setStatus(QCamera::StartingStatus);
+    setStatus(QCamera::ActiveStatus);
+
+    capturePreview();
+}
+
+void GPhotoCameraWorker::stopViewFinder()
+{
+    if (m_status == QCamera::LoadedStatus)
+        return;
+
+    setStatus(QCamera::StoppingStatus);
+    setStatus(QCamera::LoadedStatus);
+}
+
+bool GPhotoCameraWorker::isReadyForCapture() const
+{
+    if (m_captureMode & QCamera::CaptureStillImage)
+        return (m_status == QCamera::ActiveStatus || m_status == QCamera::LoadedStatus);
+
+    return false;
+}
+
 void GPhotoCameraWorker::openCameraErrorHandle(const QString& errorText)
 {
     qWarning() << qPrintable(errorText);
@@ -507,6 +560,21 @@ void GPhotoCameraWorker::setStatus(QCamera::Status status)
 {
     if (m_status != status) {
         m_status = status;
+
+        if (QCamera::LoadedStatus == m_status) {
+            m_state = QCamera::LoadedState;
+            emit stateChanged(m_state);
+            emit readyForCaptureChanged(isReadyForCapture());
+        } else if (QCamera::ActiveStatus == m_status) {
+            m_state = QCamera::ActiveState;
+            emit stateChanged(m_state);
+            emit readyForCaptureChanged(isReadyForCapture());
+        } else if (QCamera::UnloadedStatus == m_status || QCamera::UnavailableStatus == m_status) {
+            m_state = QCamera::UnloadedState;
+            emit stateChanged(m_state);
+            emit readyForCaptureChanged(isReadyForCapture());
+        }
+
         emit statusChanged(status);
     }
 }

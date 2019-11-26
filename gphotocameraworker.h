@@ -20,29 +20,37 @@ public:
     GPhotoCameraWorker(GPhotoCameraWorker&&) = delete;
     GPhotoCameraWorker&operator=(GPhotoCameraWorker&&) = delete;
 
+    Q_INVOKABLE void setState(QCamera::State state);
+    Q_INVOKABLE void setCaptureMode(QCamera::CaptureModes captureMode);
+    Q_INVOKABLE void capturePreview();
+    Q_INVOKABLE void capturePhoto(int id, const QString &fileName);
+    Q_INVOKABLE QVariant parameter(const QString &name);
+    Q_INVOKABLE bool setParameter(const QString &name, const QVariant &value);
+
 signals:
+    void stateChanged(QCamera::State);
     void statusChanged(QCamera::Status);
+    void captureModeChanged(QCamera::CaptureModes);
+    void readyForCaptureChanged(bool);
     void error(int error, const QString &errorString);
-
     void previewCaptured(const QImage&);
-
     void imageCaptured(int id, const QByteArray &imageData, const QString &fileName);
     void imageCaptureError(int id, int error, const QString &errorString);
 
-public slots:
+private:
+    Q_DISABLE_COPY(GPhotoCameraWorker)
+
     void openCamera();
     void closeCamera();
     void startViewFinder();
     void stopViewFinder();
 
-    void capturePreview();
-    void capturePhoto(int id, const QString &fileName);
+    bool isReadyForCapture() const;
+    void logOption(const char* name);
+    void openCameraErrorHandle(const QString &errorText);
 
-    QVariant parameter(const QString &name);
-    bool setParameter(const QString &name, const QVariant &value);
-
-private:
-    Q_DISABLE_COPY(GPhotoCameraWorker)
+    void setStatus(QCamera::Status status);
+    void waitForOperationCompleted();
 
     const CameraAbilities m_abilities;
     GPPortInfo m_portInfo;
@@ -50,12 +58,9 @@ private:
     CameraPtr m_camera;
     CameraFilePtr m_file;
     int m_capturingFailCount = 0;
+    QCamera::State m_state = QCamera::UnloadedState;
     QCamera::Status m_status = QCamera::UnloadedStatus;
-
-    void openCameraErrorHandle(const QString &errorText);
-    void logOption(const char* name);
-    void waitForOperationCompleted();
-    void setStatus(QCamera::Status status);
+    QCamera::CaptureModes m_captureMode = QCamera::CaptureStillImage;
 };
 
 #endif // GPHOTOCAMERAWORKER_H

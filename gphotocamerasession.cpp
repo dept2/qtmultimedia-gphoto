@@ -2,11 +2,12 @@
 #include "gphotocameraworker.h"
 #include "gphotofactory.h"
 
-#include <QVideoSurfaceFormat>
 #include <QCameraImageCapture>
-#include <QThread>
-#include <QStandardPaths>
+#include <QDebug>
 #include <QFile>
+#include <QStandardPaths>
+#include <QThread>
+#include <QVideoSurfaceFormat>
 
 GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent)
     : QObject(parent)
@@ -37,43 +38,8 @@ QCamera::State GPhotoCameraSession::state() const
 
 void GPhotoCameraSession::setState(QCamera::State state)
 {
-    if (m_setStateRequired) {
-        if (state == QCamera::UnloadedState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "closeCamera", Qt::QueuedConnection);
-        } else if (state == QCamera::LoadedState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "openCamera", Qt::QueuedConnection);
-        } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "startViewFinder", Qt::QueuedConnection);
-        }
-
-        m_setStateRequired = false;
-        return;
-    }
-
-    if (m_state == state)
-        return;
-
-    const QCamera::State previousState = m_state;
-
-    if (previousState == QCamera::UnloadedState) {
-        if (state == QCamera::LoadedState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "openCamera", Qt::QueuedConnection);
-        } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "startViewFinder", Qt::QueuedConnection);
-        }
-    } else if (previousState == QCamera::LoadedState) {
-        if (state == QCamera::UnloadedState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "closeCamera", Qt::QueuedConnection);
-        } else if (state == QCamera::ActiveState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "startViewFinder", Qt::QueuedConnection);
-        }
-    } else if (previousState == QCamera::ActiveState) {
-        if (state == QCamera::UnloadedState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "closeCamera", Qt::QueuedConnection);
-        } else if (state == QCamera::LoadedState) {
-            QMetaObject::invokeMethod(m_currentWorker.get(), "stopViewFinder", Qt::QueuedConnection);
-        }
-    }
+    QMetaObject::invokeMethod(m_currentWorker.get(), "setState",
+                              Qt::QueuedConnection, Q_ARG(QCamera::State, state));
 }
 
 QCamera::Status GPhotoCameraSession::status() const
@@ -93,11 +59,8 @@ QCamera::CaptureModes GPhotoCameraSession::captureMode() const
 
 void GPhotoCameraSession::setCaptureMode(QCamera::CaptureModes captureMode)
 {
-    if (m_captureMode == captureMode)
-        return;
-
-    m_captureMode = captureMode;
-    emit captureModeChanged(m_captureMode);
+    QMetaObject::invokeMethod(m_currentWorker.get(), "setCaptureMode",
+                              Qt::QueuedConnection, Q_ARG(QCamera::CaptureModes, captureMode));
 }
 
 bool GPhotoCameraSession::isCaptureDestinationSupported(CaptureDestinations /*destination*/) const
@@ -120,23 +83,16 @@ void GPhotoCameraSession::setCaptureDestination(QCameraImageCapture::CaptureDest
 
 bool GPhotoCameraSession::isReadyForCapture() const
 {
-    if (m_captureMode & QCamera::CaptureStillImage)
-        return (m_status == QCamera::ActiveStatus || m_status == QCamera::LoadedStatus);
-
-    return false;
+    return m_readyForCapture;
 }
 
 int GPhotoCameraSession::capture(const QString &fileName)
 {
-    m_lastImageCaptureId++;
-
-    if (!isReadyForCapture()) {
-        emit imageCaptureError(m_lastImageCaptureId, QCameraImageCapture::NotReadyError, tr("Camera not ready"));
-        return m_lastImageCaptureId;
-    }
+    ++m_lastImageCaptureId;
 
     QMetaObject::invokeMethod(m_currentWorker.get(), "capturePhoto", Qt::QueuedConnection,
                               Q_ARG(int, m_lastImageCaptureId), Q_ARG(QString, fileName));
+
     return m_lastImageCaptureId;
 }
 
@@ -181,14 +137,22 @@ void GPhotoCameraSession::setCamera(int cameraIndex)
     if (m_currentWorker != worker) {
         disconnect(worker.get(), nullptr, this, nullptr);
 
-        connect(worker.get(), &GPhotoCameraWorker::statusChanged, this, &GPhotoCameraSession::onWorkerStatusChanged);
-        connect(worker.get(), &GPhotoCameraWorker::error, this, &GPhotoCameraSession::error);
-        connect(worker.get(), &GPhotoCameraWorker::previewCaptured, this, &GPhotoCameraSession::onPreviewCaptured);
-        connect(worker.get(), &GPhotoCameraWorker::imageCaptured, this, &GPhotoCameraSession::onImageDataCaptured);
-        connect(worker.get(), &GPhotoCameraWorker::imageCaptureError, this, &GPhotoCameraSession::imageCaptureError);
+        using Worker = GPhotoCameraWorker;
+        using Session = GPhotoCameraSession;
+
+        connect(worker.get(), &Worker::stateChanged, this, &Session::onWorkerStateChanged);
+        connect(worker.get(), &Worker::statusChanged, this, &Session::onWorkerStatusChanged);
+        connect(worker.get(), &Worker::captureModeChanged, this, &Session::onWorkerReadyForCaptureChanged);
+        connect(worker.get(), &Worker::readyForCaptureChanged, this, &Session::onWorkerReadyForCaptureChanged);
+        connect(worker.get(), &Worker::error, this, &Session::error);
+        connect(worker.get(), &Worker::previewCaptured, this, &Session::onPreviewCaptured);
+        connect(worker.get(), &Worker::imageCaptured, this, &Session::onImageDataCaptured);
+        connect(worker.get(), &Worker::imageCaptureError, this, &Session::imageCaptureError);
 
         m_currentWorker = std::move(worker);
-        m_setStateRequired = true;
+
+        setState(m_state);
+        setCaptureMode(m_captureMode);
     }
 }
 
@@ -212,17 +176,17 @@ void GPhotoCameraSession::onPreviewCaptured(const QImage &image)
 
 void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageData, const QString &fileName)
 {
-    QImage image = QImage::fromData(imageData);
+    auto image = QImage::fromData(imageData);
     {
-        QSize previewSize = image.size();
-        int downScaleSteps = 0;
+        auto previewSize = image.size();
+        auto downScaleSteps = 0;
         while (previewSize.width() > 800 && downScaleSteps < 8) {
             previewSize.rwidth() /= 2;
             previewSize.rheight() /= 2;
-            downScaleSteps++;
+            ++downScaleSteps;
         }
 
-        const QImage &snapPreview = image.scaled(previewSize);
+        const auto &snapPreview = image.scaled(previewSize);
         emit imageCaptured(id, snapPreview);
     }
 
@@ -234,7 +198,7 @@ void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageDat
     if (m_captureDestination & QCameraImageCapture::CaptureToFile) {
         QString actualFileName(fileName);
         if (actualFileName.isEmpty()) {
-            QString dir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+            auto dir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
             if (dir.isEmpty()) {
                 emit imageCaptureError(id, QCameraImageCapture::ResourceError,
                                        tr("Could not determine writable location for saving captured image"));
@@ -244,7 +208,7 @@ void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageDat
             dir += "/DCIM%1.jpg";
             // Trying to find free filename
             for (int i = 0; i < 9999; ++i) {
-                QString f = dir.arg(i, 4, 10, QChar('0'));
+                const auto &f = dir.arg(i, 4, 10, QChar('0'));
                 if (!QFile(f).exists()) {
                     actualFileName = f;
                     break;
@@ -272,26 +236,35 @@ void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageDat
     }
 }
 
+void GPhotoCameraSession::onWorkerStateChanged(QCamera::State state)
+{
+    if (m_state != state) {
+        m_state = state;
+        emit stateChanged(state);
+    }
+}
+
 void GPhotoCameraSession::onWorkerStatusChanged(QCamera::Status status)
 {
-    if (status != m_status) {
+    if (m_status != status) {
         m_status = status;
-
-        if (status == QCamera::LoadedStatus) {
-            m_state = QCamera::LoadedState;
-            emit stateChanged(m_state);
-            emit readyForCaptureChanged(isReadyForCapture());
-        } else if (status == QCamera::ActiveStatus) {
-            m_state = QCamera::ActiveState;
-            emit stateChanged(m_state);
-            emit readyForCaptureChanged(isReadyForCapture());
-        } else if (status == QCamera::UnloadedStatus || status == QCamera::UnavailableStatus) {
-            m_state = QCamera::UnloadedState;
-            emit stateChanged(m_state);
-            emit readyForCaptureChanged(isReadyForCapture());
-        }
-
         emit statusChanged(status);
+    }
+}
+
+void GPhotoCameraSession::onCaptureModeChanged(QCamera::CaptureMode captureMode)
+{
+    if (m_captureMode != captureMode) {
+        m_captureMode = captureMode;
+        emit captureModeChanged(captureMode);
+    }
+}
+
+void GPhotoCameraSession::onWorkerReadyForCaptureChanged(bool readyForCapture)
+{
+    if (m_readyForCapture != readyForCapture) {
+        m_readyForCapture = readyForCapture;
+        emit readyForCaptureChanged(readyForCapture);
     }
 }
 

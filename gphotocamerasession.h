@@ -75,7 +75,10 @@ signals:
 private slots:
     void onPreviewCaptured(const QImage &image);
     void onImageDataCaptured(int id, const QByteArray &imageData, const QString &fileName);
+    void onWorkerStateChanged(QCamera::State);
     void onWorkerStatusChanged(QCamera::Status);
+    void onCaptureModeChanged(QCamera::CaptureMode);
+    void onWorkerReadyForCaptureChanged(bool);
 
 private:
     Q_DISABLE_COPY(GPhotoCameraSession)
@@ -92,7 +95,7 @@ private:
     QMap<int, std::shared_ptr<GPhotoCameraWorker>> m_workers;
     std::shared_ptr<GPhotoCameraWorker> m_currentWorker;
     int m_lastImageCaptureId = 0;
-    bool m_setStateRequired = false;
+    bool m_readyForCapture = false;
 };
 
 #endif // GPHOTOCAMERASESSION_H
