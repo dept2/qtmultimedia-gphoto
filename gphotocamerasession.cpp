@@ -22,10 +22,6 @@ GPhotoCameraSession::~GPhotoCameraSession()
     // Disconnect status change signals on app shutdown not to trigger connected (and possibly also
     // dismantling) calling code
     disconnect(m_currentWorker.get(), nullptr, this, nullptr);
-
-    for (const auto &worker : m_workers)
-        QMetaObject::invokeMethod(worker.get(), "closeCamera", Qt::BlockingQueuedConnection);
-
     // Stop working thread
     m_workerThread->quit();
     m_workerThread->wait();
