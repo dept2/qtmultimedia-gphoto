@@ -14,6 +14,11 @@ class GPhotoCameraWorker final : public QObject
 {
     Q_OBJECT
 public:
+    enum class MirrorPosition {
+        Up,
+        Down
+    };
+
     GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent = nullptr);
     ~GPhotoCameraWorker();
 
@@ -44,6 +49,7 @@ private:
     void closeCamera();
     void startViewFinder();
     void stopViewFinder();
+    void setMirrorPosition(MirrorPosition pos);
 
     bool isReadyForCapture() const;
     void logOption(const char* name);

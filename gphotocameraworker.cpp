@@ -6,6 +6,7 @@ using CameraWidgetPtr = std::unique_ptr<CameraWidget, int (*)(CameraWidget*)>;
 
 namespace {
     constexpr auto capturingFailLimit = 10;
+    constexpr auto viewfinderParameter = "viewfinder";
 }
 
 QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
@@ -132,13 +133,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
         return;
     }
 
-    // Focusing
-    if (parameter("viewfinder").isValid()) {
-        if (!setParameter("viewfinder", false))
-            qWarning() << "Failed to flap down camera mirror";
-    } else if (parameter("autofocusdrive").isValid()) {
-        setParameter("autofocusdrive", true);
-    }
+    setMirrorPosition(MirrorPosition::Down);
 
     // Capture the frame from camera
     CameraFilePath filePath;
@@ -178,10 +173,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
         waitForOperationCompleted();
     }
 
-    if (parameter("viewfinder").isValid()) {
-        if (!setParameter("viewfinder", true))
-            qWarning() << "Failed to flap up camera mirror";
-    }
+    setMirrorPosition(MirrorPosition::Up);
 }
 
 QVariant GPhotoCameraWorker::parameter(const QString &name)
@@ -427,11 +419,6 @@ void GPhotoCameraWorker::openCamera()
     m_camera = std::move(cameraPtr);
     m_capturingFailCount = 0;
 
-    if (parameter("viewfinder").isValid()) {
-        if (!setParameter("viewfinder", true))
-            qWarning() << "Failed to flap up camera mirror";
-    }
-
     setStatus(QCamera::LoadedStatus);
 }
 
@@ -445,14 +432,6 @@ void GPhotoCameraWorker::closeCamera()
         stopViewFinder();
 
     setStatus(QCamera::UnloadingStatus);
-
-    // Pull down mirror on Canon camera when closing the camera:
-    // a workaround for gphoto failing to close the mirror on
-    // older cameras when calling gp_camera_exit
-    if (parameter("viewfinder").isValid()) {
-        if (!setParameter("viewfinder", false))
-            qWarning() << "Failed to flap down camera mirror";
-    }
 
     // Close GPhoto camera session
     int ret = gp_camera_exit(m_camera.get(), m_context.get());
@@ -476,6 +455,7 @@ void GPhotoCameraWorker::startViewFinder()
         return;
 
     setStatus(QCamera::StartingStatus);
+    setMirrorPosition(MirrorPosition::Up);
     setStatus(QCamera::ActiveStatus);
 
     capturePreview();
@@ -487,7 +467,17 @@ void GPhotoCameraWorker::stopViewFinder()
         return;
 
     setStatus(QCamera::StoppingStatus);
+    setMirrorPosition(MirrorPosition::Down);
     setStatus(QCamera::LoadedStatus);
+}
+
+void GPhotoCameraWorker::setMirrorPosition(MirrorPosition pos)
+{
+    if (parameter(QLatin1Literal(viewfinderParameter)).isValid()) {
+        auto up = (MirrorPosition::Up == pos);
+        if (!setParameter(QLatin1Literal(viewfinderParameter), up))
+            qWarning() << "Failed to flap" << (up ? "up" : "down") << "camera mirror";
+    }
 }
 
 bool GPhotoCameraWorker::isReadyForCapture() const
