@@ -13,11 +13,10 @@ public:
 
     GPhotoCameraCaptureDestinationControl(GPhotoCameraCaptureDestinationControl&&) = delete;
     GPhotoCameraCaptureDestinationControl& operator=(GPhotoCameraCaptureDestinationControl&&) = delete;
-    ~GPhotoCameraCaptureDestinationControl() = default;
 
-    bool isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations destination) const override;
-    QCameraImageCapture::CaptureDestinations captureDestination() const override;
-    void setCaptureDestination(QCameraImageCapture::CaptureDestinations destination) override;
+    bool isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations destination) const final;
+    QCameraImageCapture::CaptureDestinations captureDestination() const final;
+    void setCaptureDestination(QCameraImageCapture::CaptureDestinations destination) final;
 
 private:
     Q_DISABLE_COPY(GPhotoCameraCaptureDestinationControl)

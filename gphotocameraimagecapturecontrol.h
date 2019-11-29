@@ -13,15 +13,14 @@ public:
 
     GPhotoCameraImageCaptureControl(GPhotoCameraImageCaptureControl&&) = delete;
     GPhotoCameraImageCaptureControl& operator=(GPhotoCameraImageCaptureControl&&) = delete;
-    ~GPhotoCameraImageCaptureControl() = default;
 
-    QCameraImageCapture::DriveMode driveMode() const override;
-    void setDriveMode(QCameraImageCapture::DriveMode driveMode) override;
+    QCameraImageCapture::DriveMode driveMode() const final;
+    void setDriveMode(QCameraImageCapture::DriveMode driveMode) final;
 
-    bool isReadyForCapture() const override;
+    bool isReadyForCapture() const final;
 
-    int capture(const QString &fileName) override;
-    void cancelCapture() override;
+    int capture(const QString &fileName) final;
+    void cancelCapture() final;
 
 private:
     Q_DISABLE_COPY(GPhotoCameraImageCaptureControl)

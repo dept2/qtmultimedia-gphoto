@@ -1,30 +1,46 @@
-#include "gphotocamerasession.h"
-#include "gphotocameraworker.h"
-#include "gphotofactory.h"
-
-#include <QCameraImageCapture>
+#include <QAbstractVideoSurface>
 #include <QDebug>
 #include <QFile>
 #include <QStandardPaths>
-#include <QThread>
 #include <QVideoSurfaceFormat>
 
-GPhotoCameraSession::GPhotoCameraSession(GPhotoFactory *factory, QObject *parent)
+#include "gphotocamera.h"
+#include "gphotocamerasession.h"
+#include "gphotocontroller.h"
+
+GPhotoCameraSession::GPhotoCameraSession(std::weak_ptr<GPhotoController> controller, QObject *parent)
     : QObject(parent)
-    , m_factory(factory)
-    , m_workerThread(new QThread)
+    , m_controller(controller)
 {
-    m_workerThread->start();
+    if (const auto &controller = m_controller.lock()) {
+        using Controller = GPhotoController;
+        using Session = GPhotoCameraSession;
+
+        connect(controller.get(), &Controller::captureModeChanged, this, &Session::onCaptureModeChanged);
+        connect(controller.get(), &Controller::error, this, &Session::onError);
+        connect(controller.get(), &Controller::imageCaptureError, this, &Session::onImageCaptureError);
+        connect(controller.get(), &Controller::imageCaptured, this, &Session::onImageCaptured);
+        connect(controller.get(), &Controller::previewCaptured, this, &Session::onPreviewCaptured);
+        connect(controller.get(), &Controller::readyForCaptureChanged, this, &Session::onReadyForCaptureChanged);
+        connect(controller.get(), &Controller::stateChanged, this, &Session::onStateChanged);
+        connect(controller.get(), &Controller::statusChanged, this, &Session::onStatusChanged);
+    }
 }
 
-GPhotoCameraSession::~GPhotoCameraSession()
+QList<QByteArray> GPhotoCameraSession::cameraNames() const
 {
-    // Disconnect status change signals on app shutdown not to trigger connected (and possibly also
-    // dismantling) calling code
-    disconnect(m_currentWorker.get(), nullptr, this, nullptr);
-    // Stop working thread
-    m_workerThread->quit();
-    m_workerThread->wait();
+    if (const auto &controller = m_controller.lock())
+        return controller->cameraNames();
+
+    return {};
+}
+
+QByteArray GPhotoCameraSession::defaultCameraName() const
+{
+    if (const auto &controller = m_controller.lock())
+        return controller->defaultCameraName();
+
+    return {};
 }
 
 QCamera::State GPhotoCameraSession::state() const
@@ -34,8 +50,8 @@ QCamera::State GPhotoCameraSession::state() const
 
 void GPhotoCameraSession::setState(QCamera::State state)
 {
-    QMetaObject::invokeMethod(m_currentWorker.get(), "setState",
-                              Qt::QueuedConnection, Q_ARG(QCamera::State, state));
+    if (const auto &controller = m_controller.lock())
+        controller->setState(m_cameraIndex, state);
 }
 
 QCamera::Status GPhotoCameraSession::status() const
@@ -55,19 +71,23 @@ QCamera::CaptureModes GPhotoCameraSession::captureMode() const
 
 void GPhotoCameraSession::setCaptureMode(QCamera::CaptureModes captureMode)
 {
-    QMetaObject::invokeMethod(m_currentWorker.get(), "setCaptureMode",
-                              Qt::QueuedConnection, Q_ARG(QCamera::CaptureModes, captureMode));
+    if (const auto &controller = m_controller.lock())
+        controller->setCaptureMode(m_cameraIndex, captureMode);
 }
 
-bool GPhotoCameraSession::isCaptureDestinationSupported(CaptureDestinations /*destination*/) const
+bool GPhotoCameraSession::isCaptureDestinationSupported(QCameraImageCapture::CaptureDestinations destination) const
 {
+    Q_UNUSED(destination)
+
     return true;
 }
+
 
 QCameraImageCapture::CaptureDestinations GPhotoCameraSession::captureDestination() const
 {
     return m_captureDestination;
 }
+
 
 void GPhotoCameraSession::setCaptureDestination(QCameraImageCapture::CaptureDestinations destination)
 {
@@ -84,12 +104,12 @@ bool GPhotoCameraSession::isReadyForCapture() const
 
 int GPhotoCameraSession::capture(const QString &fileName)
 {
-    ++m_lastImageCaptureId;
+    ++m_captureId;
 
-    QMetaObject::invokeMethod(m_currentWorker.get(), "capturePhoto", Qt::QueuedConnection,
-                              Q_ARG(int, m_lastImageCaptureId), Q_ARG(QString, fileName));
+    if (const auto &controller = m_controller.lock())
+        controller->capturePhoto(m_cameraIndex, m_captureId, fileName);
 
-    return m_lastImageCaptureId;
+    return m_captureId;
 }
 
 QAbstractVideoSurface* GPhotoCameraSession::surface() const
@@ -99,79 +119,68 @@ QAbstractVideoSurface* GPhotoCameraSession::surface() const
 
 void GPhotoCameraSession::setSurface(QAbstractVideoSurface *surface)
 {
-    if (m_surface == surface)
-        return;
-
-    m_surface = surface;
+    if (m_surface != surface)
+        m_surface = surface;
 }
 
 QVariant GPhotoCameraSession::parameter(const QString &name)
 {
-    QVariant result;
-    QMetaObject::invokeMethod(m_currentWorker.get(), "parameter", Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(QVariant, result), Q_ARG(QString, name));
-    return result;
+    if (const auto &controller = m_controller.lock())
+        return controller->parameter(m_cameraIndex, name);
+
+    return QVariant();
 }
 
 bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &value)
 {
-    bool result;
-    QMetaObject::invokeMethod(m_currentWorker.get(), "setParameter", Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, result), Q_ARG(QString, name), Q_ARG(QVariant, value));
-    return result;
+    if (const auto &controller = m_controller.lock())
+        return controller->setParameter(m_cameraIndex, name, value);
+
+    return false;
 }
 
 void GPhotoCameraSession::setCamera(int cameraIndex)
 {
-    auto worker = getWorker(cameraIndex);
+    if (m_cameraIndex != cameraIndex) {
+        m_cameraIndex = cameraIndex;
+        if (const auto &controller = m_controller.lock()) {
+            m_captureMode = controller->captureMode(m_cameraIndex);
+            m_state = controller->state(m_cameraIndex);
+            m_status = controller->status(m_cameraIndex);
+            controller->initCamera(cameraIndex);
+        }
+    }
 
-    if (!worker) {
-        qWarning() << "Failed to set camera with index" << cameraIndex;
+}
+
+void GPhotoCameraSession::onCaptureModeChanged(int cameraIndex, QCamera::CaptureModes captureMode)
+{
+    if (m_cameraIndex != cameraIndex)
         return;
-    }
 
-    if (m_currentWorker != worker) {
-        disconnect(worker.get(), nullptr, this, nullptr);
-
-        using Worker = GPhotoCameraWorker;
-        using Session = GPhotoCameraSession;
-
-        connect(worker.get(), &Worker::stateChanged, this, &Session::onWorkerStateChanged);
-        connect(worker.get(), &Worker::statusChanged, this, &Session::onWorkerStatusChanged);
-        connect(worker.get(), &Worker::captureModeChanged, this, &Session::onWorkerReadyForCaptureChanged);
-        connect(worker.get(), &Worker::readyForCaptureChanged, this, &Session::onWorkerReadyForCaptureChanged);
-        connect(worker.get(), &Worker::error, this, &Session::error);
-        connect(worker.get(), &Worker::previewCaptured, this, &Session::onPreviewCaptured);
-        connect(worker.get(), &Worker::imageCaptured, this, &Session::onImageDataCaptured);
-        connect(worker.get(), &Worker::imageCaptureError, this, &Session::imageCaptureError);
-
-        m_currentWorker = std::move(worker);
-
-        setState(m_state);
-        setCaptureMode(m_captureMode);
+    if (m_captureMode != captureMode) {
+        m_captureMode = captureMode;
+        emit captureModeChanged(captureMode);
     }
 }
 
-void GPhotoCameraSession::onPreviewCaptured(const QImage &image)
+void GPhotoCameraSession::onError(int cameraIndex, int errorCode, const QString &errorString)
 {
-    if (m_status == QCamera::ActiveStatus && m_surface && !image.isNull()) {
-        if (m_surface->isActive() && image.size() != m_surface->surfaceFormat().frameSize())
-            m_surface->stop();
-
-        if (!m_surface->isActive())
-            m_surface->start(QVideoSurfaceFormat(image.size(), QVideoFrame::Format_RGB32));
-
-        QVideoFrame frame(image);
-        m_surface->present(frame);
-        emit videoFrameProbed(frame);
-    }
-
-    if (m_status == QCamera::ActiveStatus)
-        QMetaObject::invokeMethod(m_currentWorker.get(), "capturePreview", Qt::QueuedConnection);
+    if (m_cameraIndex == cameraIndex)
+        emit error(errorCode, errorString);
 }
 
-void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageData, const QString &fileName)
+void GPhotoCameraSession::onImageCaptureError(int cameraIndex, int id, int errorCode, const QString &errorString)
 {
+    if (m_cameraIndex == cameraIndex)
+        emit imageCaptureError(id, errorCode, errorString);
+}
+
+void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteArray &imageData, const QString &fileName)
+{
+    if (m_cameraIndex != cameraIndex)
+        return;
+
     auto image = QImage::fromData(imageData);
     {
         auto previewSize = image.size();
@@ -203,7 +212,7 @@ void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageDat
 
             dir += "/DCIM%1.jpg";
             // Trying to find free filename
-            for (int i = 0; i < 9999; ++i) {
+            for (auto i = 0; i < 9999; ++i) {
                 const auto &f = dir.arg(i, 4, 10, QChar('0'));
                 if (!QFile(f).exists()) {
                     actualFileName = f;
@@ -232,63 +241,53 @@ void GPhotoCameraSession::onImageDataCaptured(int id, const QByteArray &imageDat
     }
 }
 
-void GPhotoCameraSession::onWorkerStateChanged(QCamera::State state)
+void GPhotoCameraSession::onPreviewCaptured(int cameraIndex, const QImage &image)
 {
-    if (m_state != state) {
-        m_state = state;
-        emit stateChanged(state);
+    if (m_cameraIndex != cameraIndex)
+        return;
+
+    if (QCamera::ActiveState == m_state && m_surface && !image.isNull()) {
+        if (m_surface->isActive() && image.size() != m_surface->surfaceFormat().frameSize())
+            m_surface->stop();
+
+        if (!m_surface->isActive())
+            m_surface->start(QVideoSurfaceFormat(image.size(), QVideoFrame::Format_RGB32));
+
+        QVideoFrame frame(image);
+        m_surface->present(frame);
+        emit videoFrameProbed(frame);
     }
 }
 
-void GPhotoCameraSession::onWorkerStatusChanged(QCamera::Status status)
+void GPhotoCameraSession::onReadyForCaptureChanged(int cameraIndex, bool readyForCapture)
 {
-    if (m_status != status) {
-        m_status = status;
-        emit statusChanged(status);
-    }
-}
+    if (m_cameraIndex != cameraIndex)
+        return;
 
-void GPhotoCameraSession::onCaptureModeChanged(QCamera::CaptureMode captureMode)
-{
-    if (m_captureMode != captureMode) {
-        m_captureMode = captureMode;
-        emit captureModeChanged(captureMode);
-    }
-}
-
-void GPhotoCameraSession::onWorkerReadyForCaptureChanged(bool readyForCapture)
-{
     if (m_readyForCapture != readyForCapture) {
         m_readyForCapture = readyForCapture;
         emit readyForCaptureChanged(readyForCapture);
     }
 }
 
-std::shared_ptr<GPhotoCameraWorker> GPhotoCameraSession::getWorker(int cameraIndex)
+void GPhotoCameraSession::onStateChanged(int cameraIndex, QCamera::State state)
 {
-    if (!m_workers.contains(cameraIndex)) {
-        Q_ASSERT(m_factory);
+    if (m_cameraIndex != cameraIndex)
+        return;
 
-        auto ok = false;
-
-        const auto &abilities = m_factory->cameraAbilities(cameraIndex, &ok);
-        if (!ok) {
-            qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
-            return nullptr;
-        }
-
-        const auto &portInfo = m_factory->portInfo(cameraIndex, &ok);
-        if (!ok) {
-            qWarning() << "Unable to get port info for camera with index" << cameraIndex;
-            return nullptr;
-        }
-
-        auto worker = std::make_shared<GPhotoCameraWorker>(abilities, portInfo);
-        worker->moveToThread(m_workerThread.get());
-
-        m_workers.insert(cameraIndex, worker);
-        return worker;
+    if (m_state != state) {
+        m_state = state;
+        emit stateChanged(state);
     }
+}
 
-    return m_workers.value(cameraIndex);
+void GPhotoCameraSession::onStatusChanged(int cameraIndex, QCamera::Status status)
+{
+    if (m_cameraIndex != cameraIndex)
+        return;
+
+    if (m_status != status) {
+        m_status = status;
+        emit statusChanged(status);
+    }
 }

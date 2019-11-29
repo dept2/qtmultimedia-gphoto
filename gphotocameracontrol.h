@@ -13,18 +13,17 @@ public:
 
     GPhotoCameraControl(GPhotoCameraControl&&) = delete;
     GPhotoCameraControl& operator=(GPhotoCameraControl&&) = delete;
-    ~GPhotoCameraControl() = default;
 
-    QCamera::State state() const override;
-    void setState(QCamera::State state) override;
+    QCamera::State state() const final;
+    void setState(QCamera::State state) final;
 
-    QCamera::Status status() const override;
+    QCamera::Status status() const final;
 
-    bool isCaptureModeSupported(QCamera::CaptureModes mode) const override;
-    QCamera::CaptureModes captureMode() const override;
-    void setCaptureMode(QCamera::CaptureModes captureMode) override;
+    bool isCaptureModeSupported(QCamera::CaptureModes mode) const final;
+    QCamera::CaptureModes captureMode() const final;
+    void setCaptureMode(QCamera::CaptureModes captureMode) final;
 
-    bool canChangeProperty(PropertyChangeType changeType, QCamera::Status status) const override;
+    bool canChangeProperty(PropertyChangeType changeType, QCamera::Status status) const final;
 
 private:
     Q_DISABLE_COPY(GPhotoCameraControl)

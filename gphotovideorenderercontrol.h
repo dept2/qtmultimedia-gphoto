@@ -13,10 +13,9 @@ public:
 
     GPhotoVideoRendererControl(GPhotoVideoRendererControl&&) = delete;
     GPhotoVideoRendererControl& operator=(GPhotoVideoRendererControl&&) = delete;
-    ~GPhotoVideoRendererControl() = default;
 
-    QAbstractVideoSurface* surface() const override;
-    void setSurface(QAbstractVideoSurface *surface) override;
+    QAbstractVideoSurface* surface() const final;
+    void setSurface(QAbstractVideoSurface *surface) final;
 
 private:
     Q_DISABLE_COPY(GPhotoVideoRendererControl)

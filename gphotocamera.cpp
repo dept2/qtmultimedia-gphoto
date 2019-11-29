@@ -1,13 +1,14 @@
-#include "gphotocameraworker.h"
-
 #include <QCameraImageCapture>
+#include <QThread>
 
-using CameraWidgetPtr = std::unique_ptr<CameraWidget, int (*)(CameraWidget*)>;
+#include "gphotocamera.h"
 
 namespace {
     constexpr auto capturingFailLimit = 10;
     constexpr auto viewfinderParameter = "viewfinder";
 }
+
+using CameraWidgetPtr = std::unique_ptr<CameraWidget, int (*)(CameraWidget*)>;
 
 QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
 {
@@ -44,50 +45,52 @@ QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
     return dbg.space();
 }
 
-GPhotoCameraWorker::GPhotoCameraWorker(const CameraAbilities &abilities, const GPPortInfo &portInfo, QObject *parent)
+GPhotoCamera::GPhotoCamera(GPContext *context, const CameraAbilities &abilities,
+                           const GPPortInfo &portInfo, QObject *parent)
     : QObject(parent)
+    , m_context(context)
     , m_abilities(abilities)
     , m_portInfo(portInfo)
-    , m_context(nullptr, gp_context_unref)
     , m_camera(nullptr, gp_camera_free)
     , m_file(nullptr, gp_file_free)
 {
+    connect(this, &GPhotoCamera::previewCaptured, this, &GPhotoCamera::capturePreview, Qt::QueuedConnection);
 }
 
-GPhotoCameraWorker::~GPhotoCameraWorker()
+GPhotoCamera::~GPhotoCamera()
 {
     closeCamera();
 }
 
-void GPhotoCameraWorker::setState(QCamera::State state)
+void GPhotoCamera::setState(QCamera::State state)
 {
     if (m_state == state)
         return;
 
     auto previousState = m_state;
 
-    if (previousState == QCamera::UnloadedState) {
-        if (state == QCamera::LoadedState) {
+    if (QCamera::UnloadedState == previousState) {
+        if (QCamera::LoadedState == state) {
             openCamera();
-        } else if (state == QCamera::ActiveState) {
+        } else if (QCamera::ActiveState == state) {
             startViewFinder();
         }
-    } else if (previousState == QCamera::LoadedState) {
-        if (state == QCamera::UnloadedState) {
+    } else if (QCamera::LoadedState == previousState) {
+        if (QCamera::UnloadedState == state) {
             closeCamera();
-        } else if (state == QCamera::ActiveState) {
+        } else if (QCamera::ActiveState == state) {
             startViewFinder();
         }
-    } else if (previousState == QCamera::ActiveState) {
-        if (state == QCamera::UnloadedState) {
+    } else if (QCamera::ActiveState == previousState) {
+        if (QCamera::UnloadedState == state) {
             closeCamera();
-        } else if (state == QCamera::LoadedState) {
+        } else if (QCamera::LoadedState == state) {
             stopViewFinder();
         }
     }
 }
 
-void GPhotoCameraWorker::setCaptureMode(QCamera::CaptureModes captureMode)
+void GPhotoCamera::setCaptureMode(QCamera::CaptureModes captureMode)
 {
     if (m_captureMode != captureMode) {
         m_captureMode = captureMode;
@@ -95,38 +98,7 @@ void GPhotoCameraWorker::setCaptureMode(QCamera::CaptureModes captureMode)
     }
 }
 
-void GPhotoCameraWorker::capturePreview()
-{
-    gp_file_clean(m_file.get());
-
-    if (m_status != QCamera::ActiveStatus)
-        return;
-
-    int ret = gp_camera_capture_preview(m_camera.get(), m_file.get(), m_context.get());
-    if (GP_OK == ret) {
-        const char* data;
-        unsigned long int size = 0;
-        ret = gp_file_get_data_and_size(m_file.get(), &data, &size);
-        if (GP_OK == ret) {
-            m_capturingFailCount = 0;
-            const QImage &result = QImage::fromData(QByteArray(data, int(size)));
-            emit previewCaptured(result);
-            return;
-        }
-    }
-
-    qWarning() << "Failed retrieving preview" << ret;
-    ++m_capturingFailCount;
-
-    if (m_capturingFailCount >= capturingFailLimit)
-    {
-      qWarning() << "Closing camera because of capturing fail";
-      emit error(QCamera::CameraError, tr("Unable to capture frame"));
-      closeCamera();
-    }
-}
-
-void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
+void GPhotoCamera::capturePhoto(int id, const QString &fileName)
 {
     if (!isReadyForCapture()) {
         emit imageCaptureError(id, QCameraImageCapture::NotReadyError, "Camera is not ready");
@@ -137,7 +109,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
 
     // Capture the frame from camera
     CameraFilePath filePath;
-    int ret = gp_camera_capture(m_camera.get(), GP_CAPTURE_IMAGE, &filePath, m_context.get());
+    int ret = gp_camera_capture(m_camera.get(), GP_CAPTURE_IMAGE, &filePath, m_context);
 
     if (ret < GP_OK) {
         qWarning() << "Failed to capture frame:" << ret;
@@ -152,7 +124,7 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
         // Unique pointer will free memory on exit
         auto filePtr = CameraFilePtr(file, gp_file_free);
 
-        ret = gp_camera_file_get(m_camera.get(), filePath.folder, filePath.name, GP_FILE_TYPE_NORMAL, file, m_context.get());
+        ret = gp_camera_file_get(m_camera.get(), filePath.folder, filePath.name, GP_FILE_TYPE_NORMAL, file, m_context);
 
         if (ret < GP_OK) {
             qWarning() << "Failed to get file from camera:" << ret;
@@ -176,10 +148,10 @@ void GPhotoCameraWorker::capturePhoto(int id, const QString &fileName)
     setMirrorPosition(MirrorPosition::Up);
 }
 
-QVariant GPhotoCameraWorker::parameter(const QString &name)
+QVariant GPhotoCamera::parameter(const QString &name)
 {
     CameraWidget *root;
-    int ret = gp_camera_get_config(m_camera.get(), &root, m_context.get());
+    auto ret = gp_camera_get_config(m_camera.get(), &root, m_context);
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto while getting parameter" << qPrintable(name);
         return QVariant();
@@ -210,7 +182,7 @@ QVariant GPhotoCameraWorker::parameter(const QString &name)
     }
 
     if (type == GP_WIDGET_TOGGLE) {
-        int value;
+        auto value = 0;
         ret = gp_widget_get_value(option, &value);
         if (ret < GP_OK) {
             qWarning() << "Unable to get value for option" << qPrintable(name) << "from gphoto";
@@ -223,10 +195,10 @@ QVariant GPhotoCameraWorker::parameter(const QString &name)
     return QVariant();
 }
 
-bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value)
+bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
 {
     CameraWidget *root;
-    int ret = gp_camera_get_config(m_camera.get(), &root, m_context.get());
+    auto ret = gp_camera_get_config(m_camera.get(), &root, m_context);
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto while setting parameter" << qPrintable(name);
         return false;
@@ -261,7 +233,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                 return false;
             }
 
-            ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
+            ret = gp_camera_set_config(m_camera.get(), root, m_context);
 
             if (ret < GP_OK) {
                 qWarning() << "Failed to set config to camera";
@@ -274,16 +246,16 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
 
         if (value.type() == QVariant::Double) {
             // Trying to find nearest possible value (with the distance of 0.1) and set it to property
-            double v = value.toDouble();
+            auto v = value.toDouble();
 
-            int count = gp_widget_count_choices(option);
-            for (int i = 0; i < count; ++i) {
+            auto count = gp_widget_count_choices(option);
+            for (auto i = 0; i < count; ++i) {
                 const char* choice;
                 gp_widget_get_choice(option, i, &choice);
 
                 // We use a workaround for flawed russian i18n of gphoto2 strings
-                bool ok;
-                double choiceValue = QString::fromLocal8Bit(choice).replace(',', '.').toDouble(&ok);
+                auto ok = false;
+                auto choiceValue = QString::fromLocal8Bit(choice).replace(',', '.').toDouble(&ok);
                 if (!ok) {
                     qDebug() << "Failed to convert value" << choice << "to double";
                     continue;
@@ -296,7 +268,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                         return false;
                     }
 
-                    ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
+                    ret = gp_camera_set_config(m_camera.get(), root, m_context);
                     if (ret < GP_OK) {
                         qWarning() << "Failed to set config to camera";
                         return false;
@@ -314,16 +286,16 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
         if (value.type() == QVariant::Int) {
             // Little hacks for 'ISO' option: if the value is -1, we pick the first non-integer value
             // we found and set it as a parameter
-            int v = value.toInt();
+            auto v = value.toInt();
 
 
-            int count = gp_widget_count_choices(option);
-            for (int i = 0; i < count; ++i) {
+            auto count = gp_widget_count_choices(option);
+            for (auto i = 0; i < count; ++i) {
                 const char* choice;
                 gp_widget_get_choice(option, i, &choice);
 
-                bool ok;
-                int choiceValue = QString::fromLocal8Bit(choice).toInt(&ok);
+                auto ok = false;
+                auto choiceValue = QString::fromLocal8Bit(choice).toInt(&ok);
 
                 if ((ok && choiceValue == v) || (!ok && v == -1)) {
                     ret = gp_widget_set_value(option, choice);
@@ -332,7 +304,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
                         return false;
                     }
 
-                    ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
+                    ret = gp_camera_set_config(m_camera.get(), root, m_context);
                     if (ret < GP_OK) {
                         qWarning() << "Failed to set config to camera";
                         return false;
@@ -353,7 +325,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     }
 
     if (type == GP_WIDGET_TOGGLE) {
-        int v = 0;
+        auto v = 0;
         if (value.canConvert<int>()) {
             v = value.toInt();
         } else {
@@ -368,7 +340,7 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
           return false;
         }
 
-        ret = gp_camera_set_config(m_camera.get(), root, m_context.get());
+        ret = gp_camera_set_config(m_camera.get(), root, m_context);
         if (ret < GP_OK) {
           qWarning() << "Failed to set config to camera";
           return false;
@@ -382,7 +354,39 @@ bool GPhotoCameraWorker::setParameter(const QString &name, const QVariant &value
     return false;
 }
 
-void GPhotoCameraWorker::openCamera()
+void GPhotoCamera::capturePreview()
+{
+    if (m_status != QCamera::ActiveStatus)
+        return;
+
+    gp_file_clean(m_file.get());
+
+    auto ret = gp_camera_capture_preview(m_camera.get(), m_file.get(), m_context);
+    if (GP_OK == ret) {
+        const char* data = nullptr;
+        unsigned long int size = 0;
+        ret = gp_file_get_data_and_size(m_file.get(), &data, &size);
+        if (GP_OK == ret) {
+            m_capturingFailCount = 0;
+            if (!QThread::currentThread()->isInterruptionRequested()) {
+                auto image = QImage::fromData(QByteArray(data, int(size)));
+                emit previewCaptured(image);
+            }
+            return;
+        }
+    }
+
+    qWarning() << "Failed retrieving preview" << ret;
+    ++m_capturingFailCount;
+
+    if (capturingFailLimit < m_capturingFailCount) {
+        qWarning() << "Closing camera because of capturing fail";
+        emit error(QCamera::CameraError, tr("Unable to capture frame"));
+        closeCamera();
+    }
+}
+
+void GPhotoCamera::openCamera()
 {
     // Camera is already open
     if (m_camera)
@@ -392,7 +396,7 @@ void GPhotoCameraWorker::openCamera()
 
     // Create camera object
     Camera *camera;
-    int ret = gp_camera_new(&camera);
+    auto ret = gp_camera_new(&camera);
     if (ret != GP_OK) {
         openCameraErrorHandle("Unable to open camera");
         return;
@@ -415,43 +419,37 @@ void GPhotoCameraWorker::openCamera()
     CameraFile *file;
     gp_file_new(&file);
     m_file.reset(file);
-    m_context.reset(gp_context_new());
     m_camera = std::move(cameraPtr);
     m_capturingFailCount = 0;
 
     setStatus(QCamera::LoadedStatus);
 }
 
-void GPhotoCameraWorker::closeCamera()
+void GPhotoCamera::closeCamera()
 {
     // Camera is already closed
     if (!m_camera)
         return;
 
-    if (m_status == QCamera::ActiveStatus)
+    if (QCamera::ActiveStatus == m_status)
         stopViewFinder();
 
     setStatus(QCamera::UnloadingStatus);
 
-    // Close GPhoto camera session
-    int ret = gp_camera_exit(m_camera.get(), m_context.get());
-    if (ret != GP_OK) {
-        qWarning() << "Failed to close camera";
-        emit error(QCamera::CameraError, tr("Failed to close camera"));
-    }
-
+    gp_file_clean(m_file.get());
     m_file.reset();
+
+    gp_camera_exit(m_camera.get(), m_context);
     m_camera.reset();
-    m_context.reset();
 
     setStatus(QCamera::UnloadedStatus);
 }
 
-void GPhotoCameraWorker::startViewFinder()
+void GPhotoCamera::startViewFinder()
 {
     openCamera();
 
-    if (m_status == QCamera::ActiveStatus)
+    if (QCamera::ActiveStatus == m_status)
         return;
 
     setStatus(QCamera::StartingStatus);
@@ -461,7 +459,7 @@ void GPhotoCameraWorker::startViewFinder()
     capturePreview();
 }
 
-void GPhotoCameraWorker::stopViewFinder()
+void GPhotoCamera::stopViewFinder()
 {
     if (m_status == QCamera::LoadedStatus)
         return;
@@ -471,7 +469,7 @@ void GPhotoCameraWorker::stopViewFinder()
     setStatus(QCamera::LoadedStatus);
 }
 
-void GPhotoCameraWorker::setMirrorPosition(MirrorPosition pos)
+void GPhotoCamera::setMirrorPosition(MirrorPosition pos)
 {
     if (parameter(QLatin1Literal(viewfinderParameter)).isValid()) {
         auto up = (MirrorPosition::Up == pos);
@@ -480,25 +478,25 @@ void GPhotoCameraWorker::setMirrorPosition(MirrorPosition pos)
     }
 }
 
-bool GPhotoCameraWorker::isReadyForCapture() const
+bool GPhotoCamera::isReadyForCapture() const
 {
     if (m_captureMode & QCamera::CaptureStillImage)
-        return (m_status == QCamera::ActiveStatus || m_status == QCamera::LoadedStatus);
+        return (QCamera::ActiveStatus == m_status || QCamera::LoadedStatus == m_status);
 
     return false;
 }
 
-void GPhotoCameraWorker::openCameraErrorHandle(const QString& errorText)
+void GPhotoCamera::openCameraErrorHandle(const QString &errorText)
 {
     qWarning() << qPrintable(errorText);
     setStatus(QCamera::UnavailableStatus);
     emit error(QCamera::CameraError, tr("Unable to open camera"));
 }
 
-void GPhotoCameraWorker::logOption(const char *name)
+void GPhotoCamera::logOption(const char *name)
 {
     CameraWidget *root;
-    int ret = gp_camera_get_config(m_camera.get(), &root, m_context.get());
+    auto ret = gp_camera_get_config(m_camera.get(), &root, m_context);
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto";
         return;
@@ -524,10 +522,10 @@ void GPhotoCameraWorker::logOption(const char *name)
 
     qDebug() << "Option" << type << name << value;
     if (type == GP_WIDGET_RADIO) {
-        int count = gp_widget_count_choices(option);
+        auto count = gp_widget_count_choices(option);
         qDebug() << "Choices count:" << count;
 
-        for (int i = 0; i < count; ++i) {
+        for (auto i = 0; i < count; ++i) {
             const char* choice;
             gp_widget_get_choice(option, i, &choice);
             qDebug() << "  value:" << choice;
@@ -535,18 +533,18 @@ void GPhotoCameraWorker::logOption(const char *name)
     }
 }
 
-void GPhotoCameraWorker::waitForOperationCompleted()
+void GPhotoCamera::waitForOperationCompleted()
 {
     CameraEventType type;
-    int ret;
+    auto ret = GP_OK;
     do {
         void *data = nullptr;
-        ret = gp_camera_wait_for_event(m_camera.get(), 10, &type, &data, m_context.get());
+        ret = gp_camera_wait_for_event(m_camera.get(), 10, &type, &data, m_context);
         free(data);
     } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT) && m_camera);
 }
 
-void GPhotoCameraWorker::setStatus(QCamera::Status status)
+void GPhotoCamera::setStatus(QCamera::Status status)
 {
     if (m_status != status) {
         m_status = status;

@@ -3,35 +3,32 @@
 
 #include <QVideoDeviceSelectorControl>
 
-class GPhotoFactory;
 class GPhotoCameraSession;
 
 class GPhotoVideoInputDeviceControl final : public QVideoDeviceSelectorControl
 {
     Q_OBJECT
 public:
-    GPhotoVideoInputDeviceControl(GPhotoFactory *factory, GPhotoCameraSession *session, QObject *parent = nullptr);
+    GPhotoVideoInputDeviceControl(GPhotoCameraSession *session, QObject *parent = nullptr);
 
     GPhotoVideoInputDeviceControl(GPhotoVideoInputDeviceControl&&) = delete;
     GPhotoVideoInputDeviceControl& operator=(GPhotoVideoInputDeviceControl&&) = delete;
-    ~GPhotoVideoInputDeviceControl() = default;
 
-    int deviceCount() const override;
+    int deviceCount() const final;
 
-    QString deviceName(int index) const override;
-    QString deviceDescription(int index) const override;
+    QString deviceName(int index) const final;
+    QString deviceDescription(int index) const final;
 
-    int defaultDevice() const override;
-    int selectedDevice() const override;
+    int defaultDevice() const final;
+    int selectedDevice() const final;
 
 public slots:
-    void setSelectedDevice(int index) override;
+    void setSelectedDevice(int index) final;
 
 private:
     Q_DISABLE_COPY(GPhotoVideoInputDeviceControl)
 
     int m_selectedDevice = -1;
-    GPhotoFactory *const m_factory;
     GPhotoCameraSession *const m_session;
 };
 

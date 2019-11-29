@@ -1,8 +1,18 @@
-#include "gphotofactory.h"
+#include <functional>
 
 #include <QDebug>
+#include <QEventLoop>
+#include <QThread>
 
-Devices::Devices()
+#include <gphoto2/gphoto2-list.h>
+#include <gphoto2/gphoto2-port-result.h>
+
+#include "gphotocamera.h"
+#include "gphotoworker.h"
+
+using CameraListPtr = std::unique_ptr<CameraList, int (*)(CameraList*)>;
+
+GPhotoDevices::GPhotoDevices()
     : portInfoList(nullptr, gp_port_info_list_free)
 {
     GPPortInfoList *list;
@@ -10,13 +20,17 @@ Devices::Devices()
     portInfoList.reset(list);
 }
 
-GPhotoFactory::GPhotoFactory()
+GPhotoWorker::GPhotoWorker()
     : m_context(nullptr, gp_context_unref)
     , m_abilitiesList(nullptr, gp_abilities_list_free)
 {
 }
 
-bool GPhotoFactory::init()
+GPhotoWorker::~GPhotoWorker()
+{
+}
+
+bool GPhotoWorker::init()
 {
     m_context.reset(gp_context_new());
 
@@ -44,27 +58,84 @@ bool GPhotoFactory::init()
     return true;
 }
 
-QList<QByteArray> GPhotoFactory::cameraNames() const
+QList<QByteArray> GPhotoWorker::cameraNames()
 {
     updateDevices();
     return m_devices.names;
 }
 
-QByteArray GPhotoFactory::defaultCameraName() const
+QByteArray GPhotoWorker::defaultCameraName()
 {
     updateDevices();
     return m_devices.defaultCameraName;
 }
 
-
-GPContext* GPhotoFactory::context() const
+void GPhotoWorker::initCamera(int cameraIndex)
 {
-    return m_context.get();
+    if (m_cameras.cend() != m_cameras.find(cameraIndex))
+        return;
+
+    updateDevices();
+
+    auto ok = false;
+
+    const auto &abilities = getCameraAbilities(cameraIndex, &ok);
+    if (!ok) {
+        qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
+        return;
+    }
+
+    const auto &portInfo = getPortInfo(cameraIndex, &ok);
+    if (!ok) {
+        qWarning() << "Unable to get port info for camera with index" << cameraIndex;
+        return;
+    }
+
+    auto camera = new GPhotoCamera(m_context.get(), abilities, portInfo, this);
+
+    using Camera = GPhotoCamera;
+    using Worker = GPhotoWorker;
+    using namespace std::placeholders;
+
+    connect(camera, &Camera::captureModeChanged, this, std::bind(&Worker::captureModeChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::error, this, std::bind(&Worker::error, this, cameraIndex, _1, _2));
+    connect(camera, &Camera::imageCaptureError, this, std::bind(&Worker::imageCaptureError, this, cameraIndex, _1, _2, _3));
+    connect(camera, &Camera::imageCaptured, this, std::bind(&Worker::imageCaptured, this, cameraIndex, _1, _2, _3));
+    connect(camera, &Camera::previewCaptured, this, std::bind(&Worker::previewCaptured, this, cameraIndex, _1));
+    connect(camera, &Camera::readyForCaptureChanged, this, std::bind(&Worker::readyForCaptureChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::stateChanged, this, std::bind(&Worker::stateChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::statusChanged, this, std::bind(&Worker::statusChanged, this, cameraIndex, _1));
+
+    m_cameras.emplace(std::make_pair(cameraIndex, camera));
 }
 
-CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
+void GPhotoWorker::setState(int cameraIndex, QCamera::State state)
 {
-    updateDevices();
+    m_cameras.at(cameraIndex)->setState(state);
+}
+
+void GPhotoWorker::setCaptureMode(int cameraIndex, QCamera::CaptureModes captureMode)
+{
+    m_cameras.at(cameraIndex)->setCaptureMode(captureMode);
+}
+
+void GPhotoWorker::capturePhoto(int cameraIndex, int id, const QString &fileName)
+{
+    m_cameras.at(cameraIndex)->capturePhoto(id, fileName);
+}
+
+QVariant GPhotoWorker::parameter(int cameraIndex, const QString &name)
+{
+    return m_cameras.at(cameraIndex)->parameter(name);
+}
+
+bool GPhotoWorker::setParameter(int cameraIndex, const QString &name, const QVariant &value)
+{
+    return m_cameras.at(cameraIndex)->setParameter(name, value);
+}
+
+CameraAbilities GPhotoWorker::getCameraAbilities(int cameraIndex, bool *ok)
+{
     CameraAbilities abilities;
 
     if (m_devices.models.isEmpty()) {
@@ -91,27 +162,24 @@ CameraAbilities GPhotoFactory::cameraAbilities(int cameraIndex, bool *ok) const
     return abilities;
 }
 
-GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
+GPPortInfo GPhotoWorker::getPortInfo(int cameraIndex, bool *ok)
 {
-    updateDevices();
+    GPPortInfo info;
+    gp_port_info_new(&info);
 
     if (m_devices.names.isEmpty()) {
         if (ok) *ok = false;
-        return GPPortInfo();
+        return info;
     }
-
-    QMutexLocker locker(&m_mutex);
 
     const auto &path = m_devices.paths.at(cameraIndex);
     auto port = gp_port_info_list_lookup_path(m_devices.portInfoList.get(), path.constData());
     if (port < GP_OK) {
         qWarning() << "GPhoto: unable to find camera port";
         if (ok) *ok = false;
-        return GPPortInfo();
+        return info;
     }
 
-    GPPortInfo info;
-    gp_port_info_new(&info);
 
     auto ret = gp_port_info_list_get_info(m_devices.portInfoList.get(), port, &info);
     if (ret < GP_OK) {
@@ -124,7 +192,7 @@ GPPortInfo GPhotoFactory::portInfo(int cameraIndex, bool *ok) const
     return info;
 }
 
-void GPhotoFactory::updateDevices() const
+void GPhotoWorker::updateDevices()
 {
     QMutexLocker locker(&m_mutex);
 
@@ -167,7 +235,7 @@ void GPhotoFactory::updateDevices() const
         return;
 
     QMap<QByteArray, int> displayNameIndexes;
-    for (int i = 0; i < cameraCount; ++i) {
+    for (auto i = 0; i < cameraCount; ++i) {
         const char *name, *path;
 
         ret = gp_list_get_name(cameraList, i, &name);

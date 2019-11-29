@@ -13,7 +13,6 @@ public:
 
     GPhotoVideoProbeControl(GPhotoVideoProbeControl&&) = delete;
     GPhotoVideoProbeControl& operator=(GPhotoVideoProbeControl&&) = delete;
-    ~GPhotoVideoProbeControl() = default;
 
 private:
     Q_DISABLE_COPY(GPhotoVideoProbeControl)

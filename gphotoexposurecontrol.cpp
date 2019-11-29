@@ -1,12 +1,21 @@
-#include "gphotoexposurecontrol.h"
 #include "gphotocamerasession.h"
+#include "gphotoexposurecontrol.h"
+
+namespace {
+    constexpr auto exposureParameter = "exposurecompensation";
+    constexpr auto isoParameter = "iso";
+}
 
 GPhotoExposureControl::GPhotoExposureControl(GPhotoCameraSession *session, QObject *parent)
     : QCameraExposureControl(parent)
     , m_session(session)
 {
     m_state = m_session->state();
-    connect(m_session, &GPhotoCameraSession::stateChanged, this, &GPhotoExposureControl::stateChanged);
+
+    using Session = GPhotoCameraSession;
+    using Control = GPhotoExposureControl;
+
+    connect(m_session, &Session::stateChanged, this, &Control::stateChanged);
 }
 
 QVariant GPhotoExposureControl::actualValue(QCameraExposureControl::ExposureParameter parameter) const
@@ -15,17 +24,17 @@ QVariant GPhotoExposureControl::actualValue(QCameraExposureControl::ExposurePara
         return QVariant();
 
     if (parameter == ExposureCompensation) {
-        QVariant value = m_session->parameter("exposurecompensation");
+        const auto &value = m_session->parameter(QLatin1Literal(exposureParameter));
 
         // We use a workaround for flawed russian i18n of gphoto2 strings
-        bool ok;
-        double result = value.toString().replace(',', '.').toDouble(&ok);
+        auto ok = false;
+        auto result = value.toString().replace(',', '.').toDouble(&ok);
         return ok ? QVariant(result) : QVariant();
     }
 
     if (parameter == ISO) {
-        bool ok;
-        int iso = m_session->parameter("iso").toInt(&ok);
+        auto ok = false;
+        auto iso = m_session->parameter(QLatin1Literal(isoParameter)).toInt(&ok);
         // Invalid QVariant for Auto ISO
         return ok ? QVariant(iso) : QVariant();
     }
@@ -79,8 +88,7 @@ bool GPhotoExposureControl::setValue(QCameraExposureControl::ExposureParameter p
         return false;
 
     if (parameter == ExposureCompensation) {
-        bool result = m_session->setParameter("exposurecompensation", value);
-
+        auto result = m_session->setParameter(QLatin1Literal(exposureParameter), value);
         if (result) {
             emit actualValueChanged(parameter);
             return true;
@@ -89,8 +97,7 @@ bool GPhotoExposureControl::setValue(QCameraExposureControl::ExposureParameter p
         QVariant v = value;
         if (!v.isValid())
             v = -1;
-        bool result = m_session->setParameter("iso", v);
-
+        auto result = m_session->setParameter(QLatin1Literal(isoParameter), v);
         if (result) {
             emit actualValueChanged(parameter);
             return true;
@@ -104,7 +111,7 @@ bool GPhotoExposureControl::setValue(QCameraExposureControl::ExposureParameter p
 
 QVariantList GPhotoExposureControl::supportedParameterRange(QCameraExposureControl::ExposureParameter parameter, bool *continuous) const
 {
-    Q_UNUSED(continuous);
+    Q_UNUSED(continuous)
 
     qDebug("supportedParameterRange %d", parameter);
     return QVariantList();
@@ -117,7 +124,7 @@ void GPhotoExposureControl::stateChanged(QCamera::State state)
             m_state = state;
 
             QMetaEnum parameter = metaObject()->enumerator(metaObject()->indexOfEnumerator("ExposureParameter"));
-            for (int i = 0; i < parameter.keyCount(); ++i) {
+            for (auto i = 0; i < parameter.keyCount(); ++i) {
                 auto p = ExposureParameter(parameter.value(i));
 
                 if (isParameterSupported(p)) {
@@ -128,7 +135,6 @@ void GPhotoExposureControl::stateChanged(QCamera::State state)
                     else
                         emit actualValueChanged(p);
                 }
-
             }
         } else {
             m_state = state;

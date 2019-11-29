@@ -13,13 +13,12 @@ public:
 
     GPhotoExposureControl(GPhotoExposureControl&&) = delete;
     GPhotoExposureControl& operator=(GPhotoExposureControl&&) = delete;
-    ~GPhotoExposureControl() = default;
 
-    QVariant actualValue(ExposureParameter parameter) const override;
-    bool isParameterSupported(ExposureParameter parameter) const override;
-    QVariant requestedValue(ExposureParameter parameter) const override;
-    bool setValue(ExposureParameter parameter, const QVariant &value) override;
-    QVariantList supportedParameterRange(ExposureParameter parameter, bool *continuous) const override;
+    QVariant actualValue(ExposureParameter parameter) const final;
+    bool isParameterSupported(ExposureParameter parameter) const final;
+    QVariant requestedValue(ExposureParameter parameter) const final;
+    bool setValue(ExposureParameter parameter, const QVariant &value) final;
+    QVariantList supportedParameterRange(ExposureParameter parameter, bool *continuous) const final;
 
 private slots:
     void stateChanged(QCamera::State);
