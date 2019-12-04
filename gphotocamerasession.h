@@ -16,6 +16,7 @@ class GPhotoCameraSession final : public QObject
     Q_OBJECT
 public:
     explicit GPhotoCameraSession(std::weak_ptr<GPhotoController> controller, QObject *parent = nullptr);
+    ~GPhotoCameraSession() = default;
 
     GPhotoCameraSession(GPhotoCameraSession&&) = delete;
     GPhotoCameraSession& operator=(GPhotoCameraSession&&) = delete;
@@ -53,10 +54,10 @@ public:
 
 signals:
     // camera control
-    void statusChanged(QCamera::Status);
-    void stateChanged(QCamera::State);
-    void error(int, const QString&);
-    void captureModeChanged(QCamera::CaptureModes);
+    void statusChanged(QCamera::Status status);
+    void stateChanged(QCamera::State state);
+    void error(int errorCode, const QString &errorString);
+    void captureModeChanged(QCamera::CaptureModes captureMode);
 
     // capture destination control
     void captureDestinationChanged(QCameraImageCapture::CaptureDestinations destination);
@@ -64,9 +65,9 @@ signals:
     // image capture control
     void imageAvailable(int id, const QVideoFrame &buffer);
     void imageCaptured(int id, const QImage &preview);
-    void imageCaptureError(int id, int error, const QString &errorString);
+    void imageCaptureError(int id, int errorCode, const QString &errorString);
     void imageSaved(int id, const QString &fileName);
-    void readyForCaptureChanged(bool);
+    void readyForCaptureChanged(bool readyForCapture);
 
     // video probe control
     void videoFrameProbed(const QVideoFrame &frame);

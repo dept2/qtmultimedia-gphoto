@@ -10,6 +10,7 @@ class GPhotoVideoProbeControl final : public QMediaVideoProbeControl
     Q_OBJECT
 public:
     explicit GPhotoVideoProbeControl(GPhotoCameraSession *session, QObject *parent = nullptr);
+    ~GPhotoVideoProbeControl() = default;
 
     GPhotoVideoProbeControl(GPhotoVideoProbeControl&&) = delete;
     GPhotoVideoProbeControl& operator=(GPhotoVideoProbeControl&&) = delete;

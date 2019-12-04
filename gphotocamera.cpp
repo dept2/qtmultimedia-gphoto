@@ -6,6 +6,7 @@
 namespace {
     constexpr auto capturingFailLimit = 10;
     constexpr auto viewfinderParameter = "viewfinder";
+    constexpr auto waitForEventTimeout = 10;
 }
 
 using CameraWidgetPtr = std::unique_ptr<CameraWidget, int (*)(CameraWidget*)>;
@@ -130,7 +131,7 @@ void GPhotoCamera::capturePhoto(int id, const QString &fileName)
             qWarning() << "Failed to get file from camera:" << ret;
             emit imageCaptureError(id, QCameraImageCapture::ResourceError, "Failed to download file from camera");
         } else {
-            const char* data;
+            const char *data = nullptr;
             unsigned long int size = 0;
 
             ret = gp_file_get_data_and_size(file, &data, &size);
@@ -150,14 +151,14 @@ void GPhotoCamera::capturePhoto(int id, const QString &fileName)
 
 QVariant GPhotoCamera::parameter(const QString &name)
 {
-    CameraWidget *root;
+    CameraWidget *root = nullptr;
     auto ret = gp_camera_get_config(m_camera.get(), &root, m_context);
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto while getting parameter" << qPrintable(name);
         return QVariant();
     }
 
-    CameraWidget *option;
+    CameraWidget *option = nullptr;
     ret = gp_widget_get_child_by_name(root, qPrintable(name), &option);
     if (ret < GP_OK) {
         qWarning() << "Unable to get config widget from gphoto";
@@ -197,7 +198,7 @@ QVariant GPhotoCamera::parameter(const QString &name)
 
 bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
 {
-    CameraWidget *root;
+    CameraWidget *root = nullptr;
     auto ret = gp_camera_get_config(m_camera.get(), &root, m_context);
     if (ret < GP_OK) {
         qWarning() << "Unable to get root option from gphoto while setting parameter" << qPrintable(name);
@@ -205,7 +206,7 @@ bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
     }
 
     // Get widget pointer
-    CameraWidget *option;
+    CameraWidget *option = nullptr;
     ret = gp_widget_get_child_by_name(root, qPrintable(name), &option);
     if (ret < GP_OK) {
         qWarning() << "Unable to get option" << qPrintable(name) << "from gphoto";
@@ -250,7 +251,7 @@ bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
 
             auto count = gp_widget_count_choices(option);
             for (auto i = 0; i < count; ++i) {
-                const char* choice;
+                const char *choice = nullptr;
                 gp_widget_get_choice(option, i, &choice);
 
                 // We use a workaround for flawed russian i18n of gphoto2 strings
@@ -291,7 +292,7 @@ bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
 
             auto count = gp_widget_count_choices(option);
             for (auto i = 0; i < count; ++i) {
-                const char* choice;
+                const char *choice = nullptr;
                 gp_widget_get_choice(option, i, &choice);
 
                 auto ok = false;
@@ -363,7 +364,7 @@ void GPhotoCamera::capturePreview()
 
     auto ret = gp_camera_capture_preview(m_camera.get(), m_file.get(), m_context);
     if (GP_OK == ret) {
-        const char* data = nullptr;
+        const char *data = nullptr;
         unsigned long int size = 0;
         ret = gp_file_get_data_and_size(m_file.get(), &data, &size);
         if (GP_OK == ret) {
@@ -526,7 +527,7 @@ void GPhotoCamera::logOption(const char *name)
         qDebug() << "Choices count:" << count;
 
         for (auto i = 0; i < count; ++i) {
-            const char* choice;
+            const char *choice = nullptr;
             gp_widget_get_choice(option, i, &choice);
             qDebug() << "  value:" << choice;
         }
@@ -538,9 +539,9 @@ void GPhotoCamera::waitForOperationCompleted()
     CameraEventType type;
     auto ret = GP_OK;
     do {
-        void *data = nullptr;
-        ret = gp_camera_wait_for_event(m_camera.get(), 10, &type, &data, m_context);
-        free(data);
+        auto dataPtr = std::unique_ptr<void, void (*)(void*)>(nullptr, free);
+        auto data = dataPtr.get();
+        ret = gp_camera_wait_for_event(m_camera.get(), waitForEventTimeout, &type, &data, m_context);
     } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT) && m_camera);
 }
 

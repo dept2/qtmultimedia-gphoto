@@ -10,6 +10,7 @@ class GPhotoCameraCaptureDestinationControl final : public QCameraCaptureDestina
     Q_OBJECT
 public:
     explicit GPhotoCameraCaptureDestinationControl(GPhotoCameraSession *session, QObject *parent = nullptr);
+    ~GPhotoCameraCaptureDestinationControl() = default;
 
     GPhotoCameraCaptureDestinationControl(GPhotoCameraCaptureDestinationControl&&) = delete;
     GPhotoCameraCaptureDestinationControl& operator=(GPhotoCameraCaptureDestinationControl&&) = delete;

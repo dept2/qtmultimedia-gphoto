@@ -20,6 +20,7 @@ class GPhotoServicePlugin final
     Q_PLUGIN_METADATA(IID "org.qt-project.qt.mediaserviceproviderfactory/5.0" FILE "gphoto.json")
 public:
     GPhotoServicePlugin() = default;
+    ~GPhotoServicePlugin() = default;
 
     GPhotoServicePlugin(GPhotoServicePlugin&&) = delete;
     GPhotoServicePlugin& operator=(GPhotoServicePlugin&&) = delete;

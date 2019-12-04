@@ -54,13 +54,13 @@ public:
 
 signals:
     void captureModeChanged(int cameraIndex, QCamera::CaptureModes);
-    void error(int cameraIndex, int error, const QString &errorString);
-    void imageCaptureError(int cameraIndex, int id, int error, const QString &errorString);
+    void error(int cameraIndex, int errorCode, const QString &errorString);
+    void imageCaptureError(int cameraIndex, int id, int errorCode, const QString &errorString);
     void imageCaptured(int cameraIndex, int id, const QByteArray &imageData, const QString &fileName);
     void previewCaptured(int cameraIndex, const QImage &image);
-    void readyForCaptureChanged(int cameraIndex, bool);
-    void stateChanged(int cameraIndex, QCamera::State);
-    void statusChanged(int cameraIndex, QCamera::Status);
+    void readyForCaptureChanged(int cameraIndex, bool readyForCapture);
+    void stateChanged(int cameraIndex, QCamera::State state);
+    void statusChanged(int cameraIndex, QCamera::Status status);
 
 private:
     Q_DISABLE_COPY(GPhotoWorker)

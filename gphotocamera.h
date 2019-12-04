@@ -38,14 +38,14 @@ public:
     bool setParameter(const QString &name, const QVariant &value);
 
 signals:
-    void captureModeChanged(QCamera::CaptureModes);
-    void error(int error, const QString &errorString);
+    void captureModeChanged(QCamera::CaptureModes captureMode);
+    void error(int errorCode, const QString &errorString);
     void imageCaptured(int id, const QByteArray &imageData, const QString &fileName);
-    void imageCaptureError(int id, int error, const QString &errorString);
+    void imageCaptureError(int id, int errorCode, const QString &errorString);
     void previewCaptured(const QImage &image);
-    void readyForCaptureChanged(bool);
-    void stateChanged(QCamera::State);
-    void statusChanged(QCamera::Status);
+    void readyForCaptureChanged(bool readyForCapture);
+    void stateChanged(QCamera::State state);
+    void statusChanged(QCamera::Status status);
 
 private slots:
     void capturePreview();
@@ -59,7 +59,7 @@ private:
     void stopViewFinder();
     void setMirrorPosition(MirrorPosition pos);
     bool isReadyForCapture() const;
-    void logOption(const char* name);
+    void logOption(const char *name);
     void openCameraErrorHandle(const QString &errorText);
     void setStatus(QCamera::Status status);
     void waitForOperationCompleted();

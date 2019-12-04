@@ -10,6 +10,10 @@
 #include "gphotocamera.h"
 #include "gphotoworker.h"
 
+namespace {
+    constexpr auto deviceCacheLifetime = 1000;
+}
+
 using CameraListPtr = std::unique_ptr<CameraList, int (*)(CameraList*)>;
 
 GPhotoDevices::GPhotoDevices()
@@ -196,7 +200,7 @@ void GPhotoWorker::updateDevices()
 {
     QMutexLocker locker(&m_mutex);
 
-    if (m_devices.cacheAgeTimer.isValid() && 1000 < m_devices.cacheAgeTimer.elapsed()) {
+    if (m_devices.cacheAgeTimer.isValid() && deviceCacheLifetime < m_devices.cacheAgeTimer.elapsed()) {
         m_devices.paths.clear();
         m_devices.models.clear();
         m_devices.names.clear();
@@ -236,7 +240,8 @@ void GPhotoWorker::updateDevices()
 
     QMap<QByteArray, int> displayNameIndexes;
     for (auto i = 0; i < cameraCount; ++i) {
-        const char *name, *path;
+        const char *name = nullptr;
+        const char *path = nullptr;
 
         ret = gp_list_get_name(cameraList, i, &name);
         if (ret < GP_OK) {

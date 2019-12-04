@@ -10,6 +10,7 @@ class GPhotoVideoInputDeviceControl final : public QVideoDeviceSelectorControl
     Q_OBJECT
 public:
     GPhotoVideoInputDeviceControl(GPhotoCameraSession *session, QObject *parent = nullptr);
+    ~GPhotoVideoInputDeviceControl() = default;
 
     GPhotoVideoInputDeviceControl(GPhotoVideoInputDeviceControl&&) = delete;
     GPhotoVideoInputDeviceControl& operator=(GPhotoVideoInputDeviceControl&&) = delete;

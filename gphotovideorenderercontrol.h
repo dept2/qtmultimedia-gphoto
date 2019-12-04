@@ -10,6 +10,7 @@ class GPhotoVideoRendererControl final : public QVideoRendererControl
     Q_OBJECT
 public:
     explicit GPhotoVideoRendererControl(GPhotoCameraSession *session, QObject *parent = nullptr);
+    ~GPhotoVideoRendererControl() = default;
 
     GPhotoVideoRendererControl(GPhotoVideoRendererControl&&) = delete;
     GPhotoVideoRendererControl& operator=(GPhotoVideoRendererControl&&) = delete;

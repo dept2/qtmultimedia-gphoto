@@ -8,9 +8,15 @@
 #include "gphotocamerasession.h"
 #include "gphotocontroller.h"
 
+namespace {
+    constexpr auto maxDownscaleSteps = 8;
+    constexpr auto maxFileIndex = 9999;
+    constexpr auto maxPreviewWidth = 800;
+}
+
 GPhotoCameraSession::GPhotoCameraSession(std::weak_ptr<GPhotoController> controller, QObject *parent)
     : QObject(parent)
-    , m_controller(controller)
+    , m_controller(std::move(controller))
 {
     if (const auto &controller = m_controller.lock()) {
         using Controller = GPhotoController;
@@ -61,7 +67,7 @@ QCamera::Status GPhotoCameraSession::status() const
 
 bool GPhotoCameraSession::isCaptureModeSupported(QCamera::CaptureModes mode) const
 {
-    return (mode == QCamera::CaptureViewfinder || mode == QCamera::CaptureStillImage);
+    return (QCamera::CaptureViewfinder == mode || QCamera::CaptureStillImage == mode);
 }
 
 QCamera::CaptureModes GPhotoCameraSession::captureMode() const
@@ -144,21 +150,17 @@ void GPhotoCameraSession::setCamera(int cameraIndex)
     if (m_cameraIndex != cameraIndex) {
         m_cameraIndex = cameraIndex;
         if (const auto &controller = m_controller.lock()) {
-            m_captureMode = controller->captureMode(m_cameraIndex);
-            m_state = controller->state(m_cameraIndex);
-            m_status = controller->status(m_cameraIndex);
+            onCaptureModeChanged(cameraIndex, controller->captureMode(m_cameraIndex));
+            onStateChanged(cameraIndex, controller->state(m_cameraIndex));
+            onStatusChanged(cameraIndex, controller->status(m_cameraIndex));
             controller->initCamera(cameraIndex);
         }
     }
-
 }
 
 void GPhotoCameraSession::onCaptureModeChanged(int cameraIndex, QCamera::CaptureModes captureMode)
 {
-    if (m_cameraIndex != cameraIndex)
-        return;
-
-    if (m_captureMode != captureMode) {
+    if (m_cameraIndex == cameraIndex && m_captureMode != captureMode) {
         m_captureMode = captureMode;
         emit captureModeChanged(captureMode);
     }
@@ -185,7 +187,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
     {
         auto previewSize = image.size();
         auto downScaleSteps = 0;
-        while (previewSize.width() > 800 && downScaleSteps < 8) {
+        while (previewSize.width() > maxPreviewWidth && downScaleSteps < maxDownscaleSteps) {
             previewSize.rwidth() /= 2;
             previewSize.rheight() /= 2;
             ++downScaleSteps;
@@ -212,7 +214,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
 
             dir += "/DCIM%1.jpg";
             // Trying to find free filename
-            for (auto i = 0; i < 9999; ++i) {
+            for (auto i = 0; i < maxFileIndex; ++i) {
                 const auto &f = dir.arg(i, 4, 10, QChar('0'));
                 if (!QFile(f).exists()) {
                     actualFileName = f;
@@ -243,10 +245,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
 
 void GPhotoCameraSession::onPreviewCaptured(int cameraIndex, const QImage &image)
 {
-    if (m_cameraIndex != cameraIndex)
-        return;
-
-    if (QCamera::ActiveState == m_state && m_surface && !image.isNull()) {
+    if (m_cameraIndex == cameraIndex && QCamera::ActiveState == m_state && m_surface && !image.isNull()) {
         if (m_surface->isActive() && image.size() != m_surface->surfaceFormat().frameSize())
             m_surface->stop();
 
@@ -261,10 +260,7 @@ void GPhotoCameraSession::onPreviewCaptured(int cameraIndex, const QImage &image
 
 void GPhotoCameraSession::onReadyForCaptureChanged(int cameraIndex, bool readyForCapture)
 {
-    if (m_cameraIndex != cameraIndex)
-        return;
-
-    if (m_readyForCapture != readyForCapture) {
+    if (m_cameraIndex == cameraIndex && m_readyForCapture != readyForCapture) {
         m_readyForCapture = readyForCapture;
         emit readyForCaptureChanged(readyForCapture);
     }
@@ -272,10 +268,7 @@ void GPhotoCameraSession::onReadyForCaptureChanged(int cameraIndex, bool readyFo
 
 void GPhotoCameraSession::onStateChanged(int cameraIndex, QCamera::State state)
 {
-    if (m_cameraIndex != cameraIndex)
-        return;
-
-    if (m_state != state) {
+    if (m_cameraIndex == cameraIndex && m_state != state) {
         m_state = state;
         emit stateChanged(state);
     }
@@ -283,10 +276,7 @@ void GPhotoCameraSession::onStateChanged(int cameraIndex, QCamera::State state)
 
 void GPhotoCameraSession::onStatusChanged(int cameraIndex, QCamera::Status status)
 {
-    if (m_cameraIndex != cameraIndex)
-        return;
-
-    if (m_status != status) {
+    if (m_cameraIndex == cameraIndex && m_status != status) {
         m_status = status;
         emit statusChanged(status);
     }

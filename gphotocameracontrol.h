@@ -10,6 +10,7 @@ class GPhotoCameraControl final : public QCameraControl
     Q_OBJECT
 public:
     explicit GPhotoCameraControl(GPhotoCameraSession *session, QObject *parent = nullptr);
+    ~GPhotoCameraControl() = default;
 
     GPhotoCameraControl(GPhotoCameraControl&&) = delete;
     GPhotoCameraControl& operator=(GPhotoCameraControl&&) = delete;

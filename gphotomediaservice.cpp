@@ -10,7 +10,7 @@
 
 GPhotoMediaService::GPhotoMediaService(std::weak_ptr<GPhotoController> controller, QObject *parent)
     : QMediaService(parent)
-    , m_session(new GPhotoCameraSession(controller))
+    , m_session(new GPhotoCameraSession(std::move(controller)))
 {
 }
 

@@ -10,6 +10,7 @@ class GPhotoExposureControl final : public QCameraExposureControl
     Q_OBJECT
 public:
     explicit GPhotoExposureControl(GPhotoCameraSession *session, QObject *parent = nullptr);
+    ~GPhotoExposureControl() = default;
 
     GPhotoExposureControl(GPhotoExposureControl&&) = delete;
     GPhotoExposureControl& operator=(GPhotoExposureControl&&) = delete;
