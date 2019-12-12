@@ -355,6 +355,94 @@ bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
     return false;
 }
 
+QVariantList GPhotoCamera::parameterValues(const QString &name, QMetaType::Type valueType)
+{
+    CameraWidget *root = nullptr;
+    auto ret = gp_camera_get_config(m_camera.get(), &root, m_context);
+    if (ret < GP_OK) {
+        qWarning() << "Unable to get root option from gphoto while setting parameter" << qPrintable(name);
+        return {};
+    }
+
+    // Get widget pointer
+    CameraWidget *option = nullptr;
+    ret = gp_widget_get_child_by_name(root, qPrintable(name), &option);
+    if (ret < GP_OK) {
+        qWarning() << "Unable to get option" << qPrintable(name) << "from gphoto";
+        return {};
+    }
+
+    // Unique pointer will free memory on exit
+    auto optionPtr = CameraWidgetPtr(option, gp_widget_free);
+
+    // Get option type
+    CameraWidgetType type;
+    ret = gp_widget_get_type(option, &type);
+    if (ret < GP_OK) {
+        qWarning() << "Unable to get option type from gphoto";
+        return {};
+    }
+
+    QVariantList values;
+
+    if (GP_WIDGET_RANGE == type) {
+        auto min = 0.0F;
+        auto max = 0.0F;
+        auto step = 0.0F;
+
+        ret = gp_widget_get_range(option, &min, &max, &step);
+        if (ret < GP_OK) {
+            qWarning() << "Unable to get widget range from gphoto";
+            return {};
+        }
+
+        values.append(min);
+
+        while (min < max)
+            values.append(min += step);
+
+        values.append(max);
+    } else if (GP_WIDGET_RADIO == type) {
+        auto count = gp_widget_count_choices(option);
+        for (auto i = 0; i < count; ++i) {
+            const char *choice = nullptr;
+            gp_widget_get_choice(option, i, &choice);
+            const auto &str = QString::fromLocal8Bit(choice);
+
+            auto ok = false;
+            QVariant value;
+
+            switch (valueType) {
+            case QMetaType::Double:
+                // We use a workaround for flawed russian i18n of gphoto2 strings
+                value = QString(str).replace(',', '.').toDouble(&ok);
+                if (!ok) {
+                    qWarning() << "Failed to convert value" << choice << "to double";
+                    continue;
+                }
+                break;
+            case QMetaType::Int:
+                value = str.toInt(&ok);
+                if (!ok) {
+                    qWarning() << "Failed to convert value" << choice << "to int";
+                    continue;
+                }
+                break;
+            case QMetaType::QString:
+                value = str;
+                break;
+            default:
+                qWarning() << "Failed to convert unsupported value" << choice;
+                continue;
+            }
+
+            values.append(value);
+        }
+    }
+
+    return values;
+}
+
 void GPhotoCamera::capturePreview()
 {
     if (m_status != QCamera::ActiveStatus)

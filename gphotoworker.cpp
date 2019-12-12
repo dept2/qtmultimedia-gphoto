@@ -138,6 +138,11 @@ bool GPhotoWorker::setParameter(int cameraIndex, const QString &name, const QVar
     return m_cameras.at(cameraIndex)->setParameter(name, value);
 }
 
+QVariantList GPhotoWorker::parameterValues(int cameraIndex, const QString &name, QMetaType::Type valueType) const
+{
+    return m_cameras.at(cameraIndex)->parameterValues(name, valueType);
+}
+
 CameraAbilities GPhotoWorker::getCameraAbilities(int cameraIndex, bool *ok)
 {
     CameraAbilities abilities;

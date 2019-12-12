@@ -129,12 +129,12 @@ void GPhotoCameraSession::setSurface(QAbstractVideoSurface *surface)
         m_surface = surface;
 }
 
-QVariant GPhotoCameraSession::parameter(const QString &name)
+QVariant GPhotoCameraSession::parameter(const QString &name) const
 {
     if (const auto &controller = m_controller.lock())
         return controller->parameter(m_cameraIndex, name);
 
-    return QVariant();
+    return {};
 }
 
 bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &value)
@@ -143,6 +143,14 @@ bool GPhotoCameraSession::setParameter(const QString &name, const QVariant &valu
         return controller->setParameter(m_cameraIndex, name, value);
 
     return false;
+}
+
+QVariantList GPhotoCameraSession::parameterValues(const QString &name, QMetaType::Type valueType) const
+{
+    if (const auto &controller = m_controller.lock())
+        return controller->parameterValues(m_cameraIndex, name, valueType);
+
+    return {};
 }
 
 void GPhotoCameraSession::setCamera(int cameraIndex)

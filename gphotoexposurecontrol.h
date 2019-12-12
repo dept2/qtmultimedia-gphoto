@@ -27,6 +27,9 @@ private slots:
 private:
     Q_DISABLE_COPY(GPhotoExposureControl)
 
+    static QVariant convertShutterSpeed(const QVariant &value);
+    static QVariantList convertShutterSpeeds(const QVariantList &values, bool removeInvalids = true);
+
     GPhotoCameraSession *const m_session;
     QMap<QCameraExposureControl::ExposureParameter, QVariant> m_requestedValues;
 

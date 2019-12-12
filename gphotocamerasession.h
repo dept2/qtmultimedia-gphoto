@@ -47,8 +47,9 @@ public:
     void setSurface(QAbstractVideoSurface *surface);
 
     // options control
-    QVariant parameter(const QString &name);
+    QVariant parameter(const QString &name) const;
     bool setParameter(const QString &name, const QVariant &value);
+    QVariantList parameterValues(const QString &name, QMetaType::Type valueType) const;
 
     void setCamera(int cameraIndex);
 

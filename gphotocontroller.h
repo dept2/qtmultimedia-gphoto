@@ -39,8 +39,9 @@ public:
 
     QCamera::Status status(int cameraIndex) const;
 
-    QVariant parameter(int cameraIndex, const QString &name);
+    QVariant parameter(int cameraIndex, const QString &name) const;
     bool setParameter(int cameraIndex, const QString &name, const QVariant &value);
+    QVariantList parameterValues(int cameraIndex, const QString &name, QMetaType::Type valueType) const;
 
 signals:
     void captureModeChanged(int cameraIndex, QCamera::CaptureModes);

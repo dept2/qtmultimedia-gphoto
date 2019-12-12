@@ -103,7 +103,7 @@ QCamera::Status GPhotoController::status(int cameraIndex) const
     return m_statuses.contains(cameraIndex) ? m_statuses.value(cameraIndex) : QCamera::UnloadedStatus;
 }
 
-QVariant GPhotoController::parameter(int cameraIndex, const QString &name)
+QVariant GPhotoController::parameter(int cameraIndex, const QString &name) const
 {
     QVariant result;
     QMetaObject::invokeMethod(m_worker.get(), "parameter", Qt::BlockingQueuedConnection,
@@ -117,6 +117,15 @@ bool GPhotoController::setParameter(int cameraIndex, const QString &name, const 
     QMetaObject::invokeMethod(m_worker.get(), "setParameter", Qt::BlockingQueuedConnection,
                               Q_RETURN_ARG(bool, result), Q_ARG(int, cameraIndex),
                               Q_ARG(QString, name), Q_ARG(QVariant, value));
+    return result;
+}
+
+QVariantList GPhotoController::parameterValues(int cameraIndex, const QString &name, QMetaType::Type valueType) const
+{
+    auto result = QVariantList();
+    QMetaObject::invokeMethod(m_worker.get(), "parameterValues", Qt::BlockingQueuedConnection,
+                              Q_RETURN_ARG(QVariantList, result), Q_ARG(int, cameraIndex),
+                              Q_ARG(QString, name), Q_ARG(QMetaType::Type, valueType));
     return result;
 }
 

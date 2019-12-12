@@ -36,6 +36,7 @@ public:
 
     QVariant parameter(const QString &name);
     bool setParameter(const QString &name, const QVariant &value);
+    QVariantList parameterValues(const QString &name, QMetaType::Type valueType);
 
 signals:
     void captureModeChanged(QCamera::CaptureModes captureMode);

@@ -51,6 +51,7 @@ public:
     Q_INVOKABLE void capturePhoto(int cameraIndex, int id, const QString &fileName);
     Q_INVOKABLE QVariant parameter(int cameraIndex, const QString &name);
     Q_INVOKABLE bool setParameter(int cameraIndex, const QString &name, const QVariant &value);
+    Q_INVOKABLE QVariantList parameterValues(int cameraIndex, const QString &name, QMetaType::Type valueType) const;
 
 signals:
     void captureModeChanged(int cameraIndex, QCamera::CaptureModes);
