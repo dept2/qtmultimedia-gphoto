@@ -10,6 +10,7 @@ namespace {
 }
 
 using CameraWidgetPtr = std::unique_ptr<CameraWidget, int (*)(CameraWidget*)>;
+using VoidPtr = std::unique_ptr<void, void (*)(void*)>;
 
 QDebug operator<<(QDebug dbg, const CameraWidgetType &t)
 {
@@ -164,6 +165,9 @@ QVariant GPhotoCamera::parameter(const QString &name)
         qWarning() << "Unable to get config widget from gphoto";
         return QVariant();
     }
+
+    // Unique pointer will free memory on exit
+    auto optionPtr = CameraWidgetPtr(option, gp_widget_free);
 
     CameraWidgetType type;
     ret = gp_widget_get_type(option, &type);
@@ -337,14 +341,14 @@ bool GPhotoCamera::setParameter(const QString &name, const QVariant &value)
 
         ret = gp_widget_set_value(option, &v);
         if (ret < GP_OK) {
-          qWarning() << "Failed to set value" << v << "to" << name << "option:" << ret;
-          return false;
+            qWarning() << "Failed to set value" << v << "to" << name << "option:" << ret;
+            return false;
         }
 
         ret = gp_camera_set_config(m_camera.get(), root, m_context);
         if (ret < GP_OK) {
-          qWarning() << "Failed to set config to camera";
-          return false;
+            qWarning() << "Failed to set config to camera";
+            return false;
         }
 
         waitForOperationCompleted();
@@ -627,7 +631,7 @@ void GPhotoCamera::waitForOperationCompleted()
     CameraEventType type;
     auto ret = GP_OK;
     do {
-        auto dataPtr = std::unique_ptr<void, void (*)(void*)>(nullptr, free);
+        auto dataPtr = VoidPtr(nullptr, free);
         auto data = dataPtr.get();
         ret = gp_camera_wait_for_event(m_camera.get(), waitForEventTimeout, &type, &data, m_context);
     } while ((ret == GP_OK) && (type != GP_EVENT_TIMEOUT) && m_camera);
