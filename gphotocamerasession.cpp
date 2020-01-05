@@ -1,6 +1,7 @@
 #include <QAbstractVideoSurface>
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QVideoSurfaceFormat>
 
@@ -191,27 +192,43 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
     if (m_cameraIndex != cameraIndex)
         return;
 
-    auto image = QImage::fromData(imageData);
+    // QImageReader::imageFormat(fileName); does not work here: Gives "tiff" for "cr2" ...
+    QString fmt = QFileInfo(fileName).suffix();
+    if (!fmt.startsWith("jpeg",Qt::CaseInsensitive) &&
+           !fmt.startsWith("jpg",Qt::CaseInsensitive) )
     {
-        auto previewSize = image.size();
-        auto downScaleSteps = 0;
-        while (previewSize.width() > maxPreviewWidth && downScaleSteps < maxDownscaleSteps) {
-            previewSize.rwidth() /= 2;
-            previewSize.rheight() /= 2;
-            ++downScaleSteps;
-        }
-
-        const auto &snapPreview = image.scaled(previewSize);
-        emit imageCaptured(id, snapPreview);
+        fmt.clear();
     }
 
-    if (m_captureDestination & QCameraImageCapture::CaptureToBuffer) {
-        QVideoFrame frame(image);
-        emit imageAvailable(id, frame);
+    if(!fmt.isEmpty())
+    {
+
+        auto image = QImage::fromData(imageData);
+        if (! image.isNull() )
+        {
+            auto previewSize = image.size();
+            auto downScaleSteps = 0;
+            while (previewSize.width() > maxPreviewWidth && downScaleSteps < maxDownscaleSteps) {
+                previewSize.rwidth() /= 2;
+                previewSize.rheight() /= 2;
+                ++downScaleSteps;
+            }
+
+            const auto &snapPreview = image.scaled(previewSize);
+            emit imageCaptured(id, snapPreview);
+
+
+            if (m_captureDestination & QCameraImageCapture::CaptureToBuffer) {
+                QVideoFrame frame(image);
+                emit imageAvailable(id, frame);
+            }
+        }
     }
 
     if (m_captureDestination & QCameraImageCapture::CaptureToFile) {
+    	QString fileExt = QFileInfo(fileName).suffix();
         QString actualFileName(fileName);
+        
         if (actualFileName.isEmpty()) {
             auto dir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
             if (dir.isEmpty()) {
@@ -220,7 +237,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
                 return;
             }
 
-            dir += "/DCIM%1.jpg";
+            dir += "/DCIM%1." + fileExt;
             // Trying to find free filename
             for (auto i = 0; i < maxFileIndex; ++i) {
                 const auto &f = dir.arg(i, 4, 10, QChar('0'));
