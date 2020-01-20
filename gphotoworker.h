@@ -71,11 +71,10 @@ private:
     GPPortInfo getPortInfo(int cameraIndex, bool *ok = nullptr);
     void updateDevices();
 
-    std::map<int, std::unique_ptr<GPhotoCamera>> m_cameras;
-
     GPContextPtr m_context;
     CameraAbilitiesListPtr m_abilitiesList;
     GPhotoDevices m_devices;
+    std::map<int, std::unique_ptr<GPhotoCamera>> m_cameras;
     QMutex m_mutex;
 };
 
