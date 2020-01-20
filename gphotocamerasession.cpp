@@ -193,7 +193,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
     if (m_cameraIndex != cameraIndex)
         return;
 
-    if (format.startsWith("jp", Qt::CaseInsensitive)) {
+    if (format.startsWith(QLatin1String("jp"), Qt::CaseInsensitive)) {
         auto image = QImage::fromData(imageData);
         if (!image.isNull()) {
             auto previewSize = image.size();
@@ -224,7 +224,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
                 return;
             }
 
-            dir += "/DCIM%1." + format;
+            dir += QLatin1String("/DCIM%1.") + format;
             // Trying to find free filename
             for (auto i = 0; i < maxFileIndex; ++i) {
                 auto tmpFileName = dir.arg(i, 4, 10, QChar('0'));

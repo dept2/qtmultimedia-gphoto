@@ -26,7 +26,7 @@ QVariant GPhotoExposureControl::actualValue(QCameraExposureControl::ExposurePara
         return QVariant();
 
     if (Aperture == parameter) {
-        const auto &value = m_session->parameter(QLatin1Literal(apertureParameter));
+        const auto &value = m_session->parameter(QLatin1String(apertureParameter));
         auto ok = false;
         // We use a workaround for flawed russian i18n of gphoto2 strings
         const auto &aperture = value.toString().replace(',', '.').toDouble(&ok);
@@ -34,7 +34,7 @@ QVariant GPhotoExposureControl::actualValue(QCameraExposureControl::ExposurePara
     }
 
     if (ExposureCompensation == parameter) {
-        const auto &value = m_session->parameter(QLatin1Literal(exposureCompensationParameter));
+        const auto &value = m_session->parameter(QLatin1String(exposureCompensationParameter));
         auto ok = false;
         // We use a workaround for flawed russian i18n of gphoto2 strings
         const auto &exposure = value.toString().replace(',', '.').toDouble(&ok);
@@ -43,13 +43,13 @@ QVariant GPhotoExposureControl::actualValue(QCameraExposureControl::ExposurePara
 
     if (ISO == parameter) {
         auto ok = false;
-        const auto &iso = m_session->parameter(QLatin1Literal(isoParameter)).toInt(&ok);
+        const auto &iso = m_session->parameter(QLatin1String(isoParameter)).toInt(&ok);
         // Invalid QVariant for Auto ISO
         return ok ? QVariant(iso) : QVariant();
     }
 
     if (ShutterSpeed == parameter)
-        return convertShutterSpeed(m_session->parameter(QLatin1Literal(shutterSpeedParameter)).toString());
+        return convertShutterSpeed(m_session->parameter(QLatin1String(shutterSpeedParameter)).toString());
 
     return QVariant();
 }
@@ -100,12 +100,12 @@ bool GPhotoExposureControl::setValue(QCameraExposureControl::ExposureParameter p
         return false;
 
     if (Aperture == parameter) {
-        if (m_session->setParameter(QLatin1Literal(apertureParameter), value)) {
+        if (m_session->setParameter(QLatin1String(apertureParameter), value)) {
             emit actualValueChanged(parameter);
             return true;
         }
     } else if (ExposureCompensation == parameter) {
-        if (m_session->setParameter(QLatin1Literal(exposureCompensationParameter), value)) {
+        if (m_session->setParameter(QLatin1String(exposureCompensationParameter), value)) {
             emit actualValueChanged(parameter);
             return true;
         }
@@ -113,13 +113,13 @@ bool GPhotoExposureControl::setValue(QCameraExposureControl::ExposureParameter p
         QVariant v = value;
         if (!v.isValid())
             v = -1;
-        if (m_session->setParameter(QLatin1Literal(isoParameter), v)) {
+        if (m_session->setParameter(QLatin1String(isoParameter), v)) {
             emit actualValueChanged(parameter);
             return true;
         }
     } else if (ShutterSpeed == parameter) {
         if (QVariant::Double == value.type())  {
-            const auto &values = m_session->parameterValues(QLatin1Literal(shutterSpeedParameter), QMetaType::QString);
+            const auto &values = m_session->parameterValues(QLatin1String(shutterSpeedParameter), QMetaType::QString);
             const auto &speeds = convertShutterSpeeds(values, false);
             if (values.size() == speeds.size()) {
                 auto speed = value.toDouble();
@@ -132,7 +132,7 @@ bool GPhotoExposureControl::setValue(QCameraExposureControl::ExposureParameter p
                     auto index = int(std::distance(speeds.cbegin(), found));
                     if (0 <= index) {
                         const auto &value = values.value(index);
-                        if (m_session->setParameter(QLatin1Literal(shutterSpeedParameter), value)) {
+                        if (m_session->setParameter(QLatin1String(shutterSpeedParameter), value)) {
                             emit actualValueChanged(parameter);
                             return true;
                         }
@@ -154,13 +154,13 @@ QVariantList GPhotoExposureControl::supportedParameterRange(QCameraExposureContr
 
     switch (parameter) {
     case Aperture:
-        return m_session->parameterValues(QLatin1Literal(apertureParameter), QMetaType::Double);
+        return m_session->parameterValues(QLatin1String(apertureParameter), QMetaType::Double);
     case ExposureCompensation:
-        return m_session->parameterValues(QLatin1Literal(exposureCompensationParameter), QMetaType::Double);
+        return m_session->parameterValues(QLatin1String(exposureCompensationParameter), QMetaType::Double);
     case ISO:
-        return m_session->parameterValues(QLatin1Literal(isoParameter), QMetaType::Int);
+        return m_session->parameterValues(QLatin1String(isoParameter), QMetaType::Int);
     case ShutterSpeed:
-        return convertShutterSpeeds(m_session->parameterValues(QLatin1Literal(shutterSpeedParameter), QMetaType::QString));
+        return convertShutterSpeeds(m_session->parameterValues(QLatin1String(shutterSpeedParameter), QMetaType::QString));
     default:
         return {};
     }

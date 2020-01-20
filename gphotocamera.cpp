@@ -104,7 +104,7 @@ void GPhotoCamera::setCaptureMode(QCamera::CaptureModes captureMode)
 void GPhotoCamera::capturePhoto(int id, const QString &fileName)
 {
     if (!isReadyForCapture()) {
-        emit imageCaptureError(id, QCameraImageCapture::NotReadyError, "Camera is not ready");
+        emit imageCaptureError(id, QCameraImageCapture::NotReadyError, tr("Camera is not ready"));
         return;
     }
 
@@ -115,7 +115,7 @@ void GPhotoCamera::capturePhoto(int id, const QString &fileName)
     auto ret = gp_camera_trigger_capture(m_camera.get(), m_context);
     if (ret < GP_OK) {
         qWarning() << "Failed to capture frame:" << ret;
-        emit imageCaptureError(id, QCameraImageCapture::ResourceError, "Failed to capture frame");
+        emit imageCaptureError(id, QCameraImageCapture::ResourceError, tr("Failed to capture frame"));
         return;
     }
 
@@ -137,7 +137,7 @@ void GPhotoCamera::capturePhoto(int id, const QString &fileName)
 
             if (ret < GP_OK) {
                 qWarning() << "Failed to get file from camera:" << ret;
-                emit imageCaptureError(id, QCameraImageCapture::ResourceError, "Failed to download file from camera");
+                emit imageCaptureError(id, QCameraImageCapture::ResourceError, tr("Failed to download file from camera"));
             } else {
                 const char* data = nullptr;
                 unsigned long int size = 0;
@@ -145,7 +145,7 @@ void GPhotoCamera::capturePhoto(int id, const QString &fileName)
                 ret = gp_file_get_data_and_size(file, &data, &size);
                 if (ret < GP_OK) {
                     qWarning() << "Failed to get file data and size from camera:" << ret;
-                    emit imageCaptureError(id, QCameraImageCapture::ResourceError, "Failed to download file from camera");
+                    emit imageCaptureError(id, QCameraImageCapture::ResourceError, tr("Failed to download file from camera"));
                 } else {
                     auto format = QFileInfo(event.fileName).suffix();
 
@@ -512,7 +512,7 @@ void GPhotoCamera::openCamera()
     Camera *camera;
     auto ret = gp_camera_new(&camera);
     if (ret != GP_OK) {
-        openCameraErrorHandle("Unable to open camera");
+        openCameraErrorHandle(QLatin1String("Unable to open camera"));
         return;
     }
 
@@ -520,13 +520,13 @@ void GPhotoCamera::openCamera()
 
     ret = gp_camera_set_abilities(camera, m_abilities);
     if (ret < GP_OK) {
-        openCameraErrorHandle("Unable to set abilities for camera");
+        openCameraErrorHandle(QLatin1String("Unable to set abilities for camera"));
         return;
     }
 
     ret = gp_camera_set_port_info(camera, m_portInfo);
     if (ret < GP_OK) {
-        openCameraErrorHandle("Unable to set port info for camera");
+        openCameraErrorHandle(QLatin1String("Unable to set port info for camera"));
         return;
     }
 
@@ -585,9 +585,9 @@ void GPhotoCamera::stopViewFinder()
 
 void GPhotoCamera::setMirrorPosition(MirrorPosition pos)
 {
-    if (parameter(QLatin1Literal(viewfinderParameter)).isValid()) {
+    if (parameter(QLatin1String(viewfinderParameter)).isValid()) {
         auto up = (MirrorPosition::Up == pos);
-        if (!setParameter(QLatin1Literal(viewfinderParameter), up))
+        if (!setParameter(QLatin1String(viewfinderParameter), up))
             qWarning() << "Failed to flap" << (up ? "up" : "down") << "camera mirror";
     }
 }

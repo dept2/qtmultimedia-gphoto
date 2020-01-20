@@ -262,7 +262,7 @@ void GPhotoWorker::updateDevices()
 
         auto displayName = QByteArray(name);
         if (displayNameIndexes.contains(name))
-            displayName.append(QString(" (%1)").arg(++displayNameIndexes[name]));
+            displayName.append(QLatin1String(" (%1)").arg(++displayNameIndexes[name]));
         else
             displayNameIndexes.insert(displayName, 0);
 
