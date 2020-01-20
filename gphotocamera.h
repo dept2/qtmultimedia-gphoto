@@ -18,6 +18,23 @@ class GPhotoCamera final : public QObject
 {
     Q_OBJECT
 public:
+
+    /** Data forming a camera event from libGPhoto
+     * packed into a nicer C++ object.
+     *
+     * This struct is returned from waitForNextEvent().
+     */
+    struct CameraEvent {
+        /// What happened
+        CameraEventType event{GP_EVENT_UNKNOWN};
+        /// For some events we get a folder / file info
+        QString folderName;
+        /// For some events we get a folder / file info
+        QString fileName;
+        /// For some events we get a message
+        QString eventInfo;
+    };
+
     enum class MirrorPosition {
         Up,
         Down
@@ -64,6 +81,14 @@ private:
     void openCameraErrorHandle(const QString &errorText);
     void setStatus(QCamera::Status status);
     void waitForOperationCompleted();
+
+    /** Waits for the next event to arrive and deliver event data.
+     *
+     * @param wait_msec max time to wait in msecs
+     * @return the event which occured.
+     */
+    CameraEvent waitForNextEvent(int wait_msec);
+
 
     GPContext *const m_context;
     CameraAbilities m_abilities;
