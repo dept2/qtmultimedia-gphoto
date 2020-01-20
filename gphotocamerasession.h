@@ -77,7 +77,8 @@ private slots:
     void onCaptureModeChanged(int cameraIndex, QCamera::CaptureModes captureMode);
     void onError(int cameraIndex, int errorCode, const QString &errorString);
     void onImageCaptureError(int cameraIndex, int id, int errorCode, const QString &errorString);
-    void onImageCaptured(int cameraIndex, int id, const QByteArray &imageData, const QString &fileName);
+    void onImageCaptured(int cameraIndex, int id, const QByteArray &imageData,
+                         const QString &format, const QString &fileName);
     void onPreviewCaptured(int cameraIndex, const QImage &image);
     void onReadyForCaptureChanged(int cameraIndex, bool readyForCapture);
     void onStateChanged(int cameraIndex, QCamera::State state);

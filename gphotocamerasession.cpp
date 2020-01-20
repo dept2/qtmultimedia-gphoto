@@ -187,25 +187,15 @@ void GPhotoCameraSession::onImageCaptureError(int cameraIndex, int id, int error
         emit imageCaptureError(id, errorCode, errorString);
 }
 
-void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteArray &imageData, const QString &fileName)
+void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteArray &imageData,
+                                          const QString &format, const QString &fileName)
 {
     if (m_cameraIndex != cameraIndex)
         return;
 
-    // QImageReader::imageFormat(fileName); does not work here: Gives "tiff" for "cr2" ...
-    QString fmt = QFileInfo(fileName).suffix();
-    if (!fmt.startsWith("jpeg",Qt::CaseInsensitive) &&
-           !fmt.startsWith("jpg",Qt::CaseInsensitive) )
-    {
-        fmt.clear();
-    }
-
-    if(!fmt.isEmpty())
-    {
-
+    if (format.startsWith("jp", Qt::CaseInsensitive)) {
         auto image = QImage::fromData(imageData);
-        if (! image.isNull() )
-        {
+        if (!image.isNull()) {
             auto previewSize = image.size();
             auto downScaleSteps = 0;
             while (previewSize.width() > maxPreviewWidth && downScaleSteps < maxDownscaleSteps) {
@@ -217,7 +207,6 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
             const auto &snapPreview = image.scaled(previewSize);
             emit imageCaptured(id, snapPreview);
 
-
             if (m_captureDestination & QCameraImageCapture::CaptureToBuffer) {
                 QVideoFrame frame(image);
                 emit imageAvailable(id, frame);
@@ -226,9 +215,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
     }
 
     if (m_captureDestination & QCameraImageCapture::CaptureToFile) {
-    	QString fileExt = QFileInfo(fileName).suffix();
         QString actualFileName(fileName);
-        
         if (actualFileName.isEmpty()) {
             auto dir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
             if (dir.isEmpty()) {
@@ -237,12 +224,12 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
                 return;
             }
 
-            dir += "/DCIM%1." + fileExt;
+            dir += "/DCIM%1." + format;
             // Trying to find free filename
             for (auto i = 0; i < maxFileIndex; ++i) {
-                const auto &f = dir.arg(i, 4, 10, QChar('0'));
-                if (!QFile(f).exists()) {
-                    actualFileName = f;
+                auto tmpFileName = dir.arg(i, 4, 10, QChar('0'));
+                if (!QFile(tmpFileName).exists()) {
+                    actualFileName = std::move(tmpFileName);
                     break;
                 }
             }
@@ -262,7 +249,7 @@ void GPhotoCameraSession::onImageCaptured(int cameraIndex, int id, const QByteAr
                 emit imageCaptureError(id, QCameraImageCapture::OutOfSpaceError, file.errorString());
             }
         } else {
-            const QString &errorMessage = tr("Could not open destination file:\n%1").arg(actualFileName);
+            auto errorMessage = tr("Could not open destination file:\n%1").arg(actualFileName);
             emit imageCaptureError(id, QCameraImageCapture::ResourceError, errorMessage);
         }
     }

@@ -104,7 +104,7 @@ void GPhotoWorker::initCamera(int cameraIndex)
     connect(camera, &Camera::captureModeChanged, this, std::bind(&Worker::captureModeChanged, this, cameraIndex, _1));
     connect(camera, &Camera::error, this, std::bind(&Worker::error, this, cameraIndex, _1, _2));
     connect(camera, &Camera::imageCaptureError, this, std::bind(&Worker::imageCaptureError, this, cameraIndex, _1, _2, _3));
-    connect(camera, &Camera::imageCaptured, this, std::bind(&Worker::imageCaptured, this, cameraIndex, _1, _2, _3));
+    connect(camera, &Camera::imageCaptured, this, std::bind(&Worker::imageCaptured, this, cameraIndex, _1, _2, _3, _4));
     connect(camera, &Camera::previewCaptured, this, std::bind(&Worker::previewCaptured, this, cameraIndex, _1));
     connect(camera, &Camera::readyForCaptureChanged, this, std::bind(&Worker::readyForCaptureChanged, this, cameraIndex, _1));
     connect(camera, &Camera::stateChanged, this, std::bind(&Worker::stateChanged, this, cameraIndex, _1));

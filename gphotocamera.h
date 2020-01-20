@@ -31,8 +31,6 @@ public:
         QString folderName;
         /// For some events we get a folder / file info
         QString fileName;
-        /// For some events we get a message
-        QString eventInfo;
     };
 
     enum class MirrorPosition {
@@ -58,7 +56,7 @@ public:
 signals:
     void captureModeChanged(QCamera::CaptureModes captureMode);
     void error(int errorCode, const QString &errorString);
-    void imageCaptured(int id, const QByteArray &imageData, const QString &fileName);
+    void imageCaptured(int id, const QByteArray &imageData, const QString &format, const QString &fileName);
     void imageCaptureError(int id, int errorCode, const QString &errorString);
     void previewCaptured(const QImage &image);
     void readyForCaptureChanged(bool readyForCapture);
@@ -87,7 +85,7 @@ private:
      * @param wait_msec max time to wait in msecs
      * @return the event which occured.
      */
-    CameraEvent waitForNextEvent(int wait_msec);
+    CameraEvent waitForNextEvent(int timeout);
 
 
     GPContext *const m_context;
