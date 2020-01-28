@@ -26,7 +26,9 @@ struct GPhotoDevices final
     QList<QByteArray> models;
     QList<QByteArray> names;
     QByteArray defaultCameraName;
+    GPContextPtr context;
     GPPortInfoListPtr portInfoList;
+    CameraAbilitiesListPtr abilitiesList;
     QElapsedTimer cacheAgeTimer;
 };
 
@@ -34,7 +36,7 @@ class GPhotoWorker final : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoWorker();
+    GPhotoWorker() = default;
     ~GPhotoWorker();
 
     GPhotoWorker(GPhotoWorker&&) = delete;
@@ -71,8 +73,6 @@ private:
     GPPortInfo getPortInfo(int cameraIndex, bool *ok = nullptr);
     void updateDevices();
 
-    GPContextPtr m_context;
-    CameraAbilitiesListPtr m_abilitiesList;
     GPhotoDevices m_devices;
     std::map<int, std::unique_ptr<GPhotoCamera>> m_cameras;
     QMutex m_mutex;

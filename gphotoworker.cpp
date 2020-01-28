@@ -17,17 +17,17 @@ namespace {
 using CameraListPtr = std::unique_ptr<CameraList, int (*)(CameraList*)>;
 
 GPhotoDevices::GPhotoDevices()
-    : portInfoList(nullptr, gp_port_info_list_free)
+    : context(gp_context_new(), gp_context_unref)
+    , portInfoList(nullptr, gp_port_info_list_free)
+    , abilitiesList(nullptr, gp_abilities_list_free)
 {
-    GPPortInfoList *list;
-    gp_port_info_list_new(&list);
-    portInfoList.reset(list);
-}
+    GPPortInfoList *piList;
+    gp_port_info_list_new(&piList);
+    portInfoList.reset(piList);
 
-GPhotoWorker::GPhotoWorker()
-    : m_context(nullptr, gp_context_unref)
-    , m_abilitiesList(nullptr, gp_abilities_list_free)
-{
+    CameraAbilitiesList *aList;
+    gp_abilities_list_new(&aList);
+    abilitiesList.reset(aList);
 }
 
 GPhotoWorker::~GPhotoWorker()
@@ -36,24 +36,27 @@ GPhotoWorker::~GPhotoWorker()
 
 bool GPhotoWorker::init()
 {
-    m_context.reset(gp_context_new());
+    Q_ASSERT(m_devices.context);
 
-    if (!m_context) {
-        qWarning() << "GPhoto: unable to create GPhoto context";
+    auto ret = gp_port_info_list_load(m_devices.portInfoList.get());
+    if (ret < GP_OK) {
+        qWarning() << "GPhoto: unable to load port info list";
         return false;
     }
 
-    CameraAbilitiesList *list;
-    gp_abilities_list_new(&list);
-    m_abilitiesList.reset(list);
+    ret = gp_port_info_list_count(m_devices.portInfoList.get());
+    if (ret < 1) {
+        qWarning() << "GPhoto: port info list is empty";
+        return false;
+    }
 
-    auto ret = gp_abilities_list_load(list, m_context.get());
+    ret = gp_abilities_list_load(m_devices.abilitiesList.get(), m_devices.context.get());
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to load camera abilities list";
         return false;
     }
 
-    ret = gp_abilities_list_count(list);
+    ret = gp_abilities_list_count(m_devices.abilitiesList.get());
     if (ret < 1) {
         qWarning() << "GPhoto: camera abilities list is empty";
         return false;
@@ -95,7 +98,7 @@ void GPhotoWorker::initCamera(int cameraIndex)
         return;
     }
 
-    auto camera = new GPhotoCamera(m_context.get(), abilities, portInfo, this);
+    auto camera = new GPhotoCamera(m_devices.context.get(), abilities, portInfo, this);
 
     using Camera = GPhotoCamera;
     using Worker = GPhotoWorker;
@@ -153,14 +156,14 @@ CameraAbilities GPhotoWorker::getCameraAbilities(int cameraIndex, bool *ok)
     }
 
     const auto &model = m_devices.models.at(cameraIndex);
-    auto abilitiesIndex = gp_abilities_list_lookup_model(m_abilitiesList.get(), model.constData());
+    auto abilitiesIndex = gp_abilities_list_lookup_model(m_devices.abilitiesList.get(), model.constData());
     if (abilitiesIndex < GP_OK) {
         qWarning() << "GPhoto: unable to find camera abilities";
         if (ok) *ok = false;
         return abilities;
     }
 
-    auto ret = gp_abilities_list_get_abilities(m_abilitiesList.get(), abilitiesIndex, &abilities);
+    auto ret = gp_abilities_list_get_abilities(m_devices.abilitiesList.get(), abilitiesIndex, &abilities);
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to get camera abilities";
         if (ok) *ok = false;
@@ -215,27 +218,15 @@ void GPhotoWorker::updateDevices()
     if (!m_devices.names.isEmpty())
         return;
 
-    auto ret = gp_port_info_list_load(m_devices.portInfoList.get());
-    if (ret < GP_OK) {
-        qWarning() << "GPhoto: unable to load port info list";
-        return;
-    }
-
-    ret = gp_port_info_list_count(m_devices.portInfoList.get());
-    if (ret < 1) {
-        qWarning() << "GPhoto: port info list is empty";
-        return;
-    }
-
     CameraList *cameraList;
     gp_list_new(&cameraList);
 
     // Unique pointer will free memory on exit
     auto cameraListPtr = CameraListPtr(cameraList, gp_list_free);
 
-    ret = gp_abilities_list_detect(m_abilitiesList.get(), m_devices.portInfoList.get(), cameraList, m_context.get());
+    auto ret = gp_camera_autodetect(cameraList, m_devices.context.get());
     if (ret < GP_OK) {
-        qWarning() << "GPhoto: unable to detect abilities list";
+        qWarning() << "GPhoto: unable to detect camera";
         return;
     }
 
