@@ -18,25 +18,11 @@ using CameraAbilitiesListPtr = std::unique_ptr<CameraAbilitiesList, int (*)(Came
 using GPContextPtr = std::unique_ptr<GPContext, void (*)(GPContext*)>;
 using GPPortInfoListPtr = std::unique_ptr<GPPortInfoList, int (*)(GPPortInfoList*)>;
 
-struct GPhotoDevices final
-{
-    GPhotoDevices();
-
-    QList<QByteArray> paths;
-    QList<QByteArray> models;
-    QList<QByteArray> names;
-    QByteArray defaultCameraName;
-    GPContextPtr context;
-    GPPortInfoListPtr portInfoList;
-    CameraAbilitiesListPtr abilitiesList;
-    QElapsedTimer cacheAgeTimer;
-};
-
 class GPhotoWorker final : public QObject
 {
     Q_OBJECT
 public:
-    GPhotoWorker() = default;
+    GPhotoWorker();
     ~GPhotoWorker();
 
     GPhotoWorker(GPhotoWorker&&) = delete;
@@ -69,12 +55,21 @@ signals:
 private:
     Q_DISABLE_COPY(GPhotoWorker)
 
-    CameraAbilities getCameraAbilities(int cameraIndex, bool *ok = nullptr);
-    GPPortInfo getPortInfo(int cameraIndex, bool *ok = nullptr);
+    CameraAbilities getCameraAbilities(const QByteArray &path, bool *ok = nullptr);
+    GPPortInfo getPortInfo(const QByteArray &path, bool *ok = nullptr);
     void updateDevices();
 
-    GPhotoDevices m_devices;
-    std::map<int, std::unique_ptr<GPhotoCamera>> m_cameras;
+    GPContextPtr m_context;
+    GPPortInfoListPtr m_portInfoList;
+    CameraAbilitiesListPtr m_abilitiesList;
+
+    QList<QByteArray> m_paths;
+    QMap<QByteArray, QByteArray> m_models;
+    QMap<QByteArray, QByteArray> m_names;
+    std::map<QByteArray, std::unique_ptr<GPhotoCamera>> m_cameras;
+    QByteArray m_defaultCameraName;
+
+    QElapsedTimer m_cacheAgeTimer;
     QMutex m_mutex;
 };
 
