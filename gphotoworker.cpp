@@ -68,7 +68,7 @@ bool GPhotoWorker::init()
 QList<QByteArray> GPhotoWorker::cameraNames()
 {
     updateDevices();
-    return m_names.values();
+    return m_names;
 }
 
 QByteArray GPhotoWorker::defaultCameraName()
@@ -79,6 +79,8 @@ QByteArray GPhotoWorker::defaultCameraName()
 
 void GPhotoWorker::initCamera(int cameraIndex)
 {
+    updateDevices();
+
     const auto &path = m_paths.value(cameraIndex);
     if (path.isEmpty()) {
         qWarning() << "Unable to init camera with index" << cameraIndex;
@@ -92,13 +94,13 @@ void GPhotoWorker::initCamera(int cameraIndex)
 
     auto ok = false;
 
-    const auto &abilities = getCameraAbilities(path, &ok);
+    const auto &abilities = getCameraAbilities(cameraIndex, &ok);
     if (!ok) {
         qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
         return;
     }
 
-    const auto &portInfo = getPortInfo(path, &ok);
+    const auto &portInfo = getPortInfo(cameraIndex, &ok);
     if (!ok) {
         qWarning() << "Unable to get port info for camera with index" << cameraIndex;
         return;
@@ -164,15 +166,16 @@ QVariantList GPhotoWorker::parameterValues(int cameraIndex, const QString &name,
            ? m_cameras.at(path)->parameterValues(name, valueType) : QVariantList();
 }
 
-CameraAbilities GPhotoWorker::getCameraAbilities(const QByteArray &path, bool *ok)
+CameraAbilities GPhotoWorker::getCameraAbilities(int cameraIndex, bool *ok)
 {
     CameraAbilities abilities;
 
-    if (!m_models.contains(path)) {
+    if (m_paths.isEmpty()) {
         if (ok) *ok = false;
         return abilities;
     }
 
+    const auto &path = m_paths.at(cameraIndex);
     const auto &model = m_models.value(path);
     auto abilitiesIndex = gp_abilities_list_lookup_model(m_abilitiesList.get(), model.constData());
     if (abilitiesIndex < GP_OK) {
@@ -192,10 +195,17 @@ CameraAbilities GPhotoWorker::getCameraAbilities(const QByteArray &path, bool *o
     return abilities;
 }
 
-GPPortInfo GPhotoWorker::getPortInfo(const QByteArray &path, bool *ok)
+GPPortInfo GPhotoWorker::getPortInfo(int cameraIndex, bool *ok)
 {
     GPPortInfo info;
     gp_port_info_new(&info);
+
+    if (m_paths.isEmpty()) {
+        if (ok) *ok = false;
+        return info;
+    }
+
+    const auto &path = m_paths.at(cameraIndex);
 
     auto port = gp_port_info_list_lookup_path(m_portInfoList.get(), path.constData());
     if (port < GP_OK) {
@@ -237,6 +247,8 @@ void GPhotoWorker::updateDevices()
     auto ret = gp_camera_autodetect(cameraList, m_context.get());
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to detect camera";
+        m_models.clear();
+        m_cameras.clear();
         return;
     }
 
@@ -276,8 +288,8 @@ void GPhotoWorker::updateDevices()
 //        qDebug() << "GPhoto: found" << qPrintable(name) << "at path" << qPrintable(path);
 
         m_paths.append(path);
+        m_names.append(name);
         m_models.insert(path, model);
-        m_names.insert(path, name);
 
         if (prevModels.contains(path)) {
           const auto &prevModel = prevModels.value(path);
@@ -287,7 +299,7 @@ void GPhotoWorker::updateDevices()
     }
 
     if (!m_paths.isEmpty()) {
-        m_defaultCameraName = m_names.value(m_paths.first());
+        m_defaultCameraName = m_names.first();
         m_cacheAgeTimer.restart();
     }
 }
