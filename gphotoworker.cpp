@@ -83,7 +83,7 @@ void GPhotoWorker::initCamera(int cameraIndex)
 
     const auto &path = m_paths.value(cameraIndex);
     if (path.isEmpty()) {
-        qWarning() << "Unable to init camera with index" << cameraIndex;
+        qWarning() << "GPhoto: Unable to init camera with index" << cameraIndex;
         return;
     }
 
@@ -96,13 +96,13 @@ void GPhotoWorker::initCamera(int cameraIndex)
 
     const auto &abilities = getCameraAbilities(cameraIndex, &ok);
     if (!ok) {
-        qWarning() << "Unable to get abilities for camera with index" << cameraIndex;
+        qWarning() << "GPhoto: Unable to get abilities for camera with index" << cameraIndex;
         return;
     }
 
     const auto &portInfo = getPortInfo(cameraIndex, &ok);
     if (!ok) {
-        qWarning() << "Unable to get port info for camera with index" << cameraIndex;
+        qWarning() << "GPhoto: Unable to get port info for camera with index" << cameraIndex;
         return;
     }
 
@@ -112,16 +112,16 @@ void GPhotoWorker::initCamera(int cameraIndex)
     using Worker = GPhotoWorker;
     using namespace std::placeholders;
 
-    connect(camera, &Camera::captureModeChanged, this, std::bind(&Worker::captureModeChanged, this, cameraIndex, _1));
-    connect(camera, &Camera::error, this, std::bind(&Worker::error, this, cameraIndex, _1, _2));
-    connect(camera, &Camera::imageCaptureError, this, std::bind(&Worker::imageCaptureError, this, cameraIndex, _1, _2, _3));
-    connect(camera, &Camera::imageCaptured, this, std::bind(&Worker::imageCaptured, this, cameraIndex, _1, _2, _3, _4));
-    connect(camera, &Camera::previewCaptured, this, std::bind(&Worker::previewCaptured, this, cameraIndex, _1));
-    connect(camera, &Camera::readyForCaptureChanged, this, std::bind(&Worker::readyForCaptureChanged, this, cameraIndex, _1));
-    connect(camera, &Camera::stateChanged, this, std::bind(&Worker::stateChanged, this, cameraIndex, _1));
-    connect(camera, &Camera::statusChanged, this, std::bind(&Worker::statusChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::captureModeChanged, camera, std::bind(&Worker::captureModeChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::error, camera, std::bind(&Worker::error, this, cameraIndex, _1, _2));
+    connect(camera, &Camera::imageCaptureError, camera, std::bind(&Worker::imageCaptureError, this, cameraIndex, _1, _2, _3));
+    connect(camera, &Camera::imageCaptured, camera, std::bind(&Worker::imageCaptured, this, cameraIndex, _1, _2, _3, _4));
+    connect(camera, &Camera::previewCaptured, camera, std::bind(&Worker::previewCaptured, this, cameraIndex, _1));
+    connect(camera, &Camera::readyForCaptureChanged, camera, std::bind(&Worker::readyForCaptureChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::stateChanged, camera, std::bind(&Worker::stateChanged, this, cameraIndex, _1));
+    connect(camera, &Camera::statusChanged, camera, std::bind(&Worker::statusChanged, this, cameraIndex, _1));
 
-    m_cameras.emplace(std::make_pair(path, camera));
+    m_cameras.emplace(path, camera);
 }
 
 void GPhotoWorker::setState(int cameraIndex, QCamera::State state)
@@ -175,8 +175,7 @@ CameraAbilities GPhotoWorker::getCameraAbilities(int cameraIndex, bool *ok)
         return abilities;
     }
 
-    const auto &path = m_paths.at(cameraIndex);
-    const auto &model = m_models.value(path);
+    const auto &model = m_models.value(cameraIndex);
     auto abilitiesIndex = gp_abilities_list_lookup_model(m_abilitiesList.get(), model.constData());
     if (abilitiesIndex < GP_OK) {
         qWarning() << "GPhoto: unable to find camera abilities";
@@ -231,7 +230,9 @@ void GPhotoWorker::updateDevices()
 
     if (m_cacheAgeTimer.isValid() && deviceCacheLifetime < m_cacheAgeTimer.elapsed()) {
         m_paths.clear();
+        m_models.clear();
         m_names.clear();
+        m_cameras.clear();
         m_defaultCameraName.clear();
     }
 
@@ -247,20 +248,14 @@ void GPhotoWorker::updateDevices()
     auto ret = gp_camera_autodetect(cameraList, m_context.get());
     if (ret < GP_OK) {
         qWarning() << "GPhoto: unable to detect camera";
-        m_models.clear();
-        m_cameras.clear();
         return;
     }
 
     auto cameraCount = gp_list_count(cameraList);
     if (cameraCount < 1) {
-        m_models.clear();
-        m_cameras.clear();
         return;
     }
 
-    QMap<QByteArray, QByteArray> prevModels;
-    std::swap(m_models, prevModels);
     QMap<QByteArray, int> nameIndexes;
     for (auto i = 0; i < cameraCount; ++i) {
         const char *gpPath = nullptr;
@@ -288,14 +283,8 @@ void GPhotoWorker::updateDevices()
 //        qDebug() << "GPhoto: found" << qPrintable(name) << "at path" << qPrintable(path);
 
         m_paths.append(path);
+        m_models.append(model);
         m_names.append(name);
-        m_models.insert(path, model);
-
-        if (prevModels.contains(path)) {
-          const auto &prevModel = prevModels.value(path);
-          if (prevModel != model)
-              m_cameras.erase(m_cameras.find(path));
-        }
     }
 
     if (!m_paths.isEmpty()) {

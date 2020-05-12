@@ -64,8 +64,8 @@ private:
     CameraAbilitiesListPtr m_abilitiesList;
 
     QList<QByteArray> m_paths;
+    QList<QByteArray> m_models;
     QList<QByteArray> m_names;
-    QMap<QByteArray, QByteArray> m_models;
 
     std::map<QByteArray, std::unique_ptr<GPhotoCamera>> m_cameras;
     QByteArray m_defaultCameraName;
