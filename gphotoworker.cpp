@@ -79,9 +79,7 @@ QByteArray GPhotoWorker::defaultCameraName()
 
 void GPhotoWorker::initCamera(int cameraIndex)
 {
-    updateDevices();
-
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     if (path.isEmpty()) {
         qWarning() << "GPhoto: Unable to init camera with index" << cameraIndex;
         return;
@@ -126,42 +124,42 @@ void GPhotoWorker::initCamera(int cameraIndex)
 
 void GPhotoWorker::setState(int cameraIndex, QCamera::State state)
 {
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     if (!path.isEmpty() && m_cameras.cend() != m_cameras.find(path))
         m_cameras.at(path)->setState(state);
 }
 
 void GPhotoWorker::setCaptureMode(int cameraIndex, QCamera::CaptureModes captureMode)
 {
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     if (!path.isEmpty() && m_cameras.cend() != m_cameras.find(path))
         m_cameras.at(path)->setCaptureMode(captureMode);
 }
 
 void GPhotoWorker::capturePhoto(int cameraIndex, int id, const QString &fileName)
 {
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     if (!path.isEmpty() && m_cameras.cend() != m_cameras.find(path))
         m_cameras.at(path)->capturePhoto(id, fileName);
 }
 
 QVariant GPhotoWorker::parameter(int cameraIndex, const QString &name)
 {
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     return (!path.isEmpty() && m_cameras.cend() != m_cameras.find(path))
            ? m_cameras.at(path)->parameter(name) : QVariant();
 }
 
 bool GPhotoWorker::setParameter(int cameraIndex, const QString &name, const QVariant &value)
 {
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     return (!path.isEmpty() && m_cameras.cend() != m_cameras.find(path))
            ? m_cameras.at(path)->setParameter(name, value) : false;
 }
 
 QVariantList GPhotoWorker::parameterValues(int cameraIndex, const QString &name, QMetaType::Type valueType) const
 {
-    const auto &path = m_paths.value(cameraIndex);
+    const auto &path = m_paths.at(cameraIndex);
     return (!path.isEmpty() && m_cameras.cend() != m_cameras.find(path))
            ? m_cameras.at(path)->parameterValues(name, valueType) : QVariantList();
 }
@@ -175,7 +173,7 @@ CameraAbilities GPhotoWorker::getCameraAbilities(int cameraIndex, bool *ok)
         return abilities;
     }
 
-    const auto &model = m_models.value(cameraIndex);
+    const auto &model = m_models.at(cameraIndex);
     auto abilitiesIndex = gp_abilities_list_lookup_model(m_abilitiesList.get(), model.constData());
     if (abilitiesIndex < GP_OK) {
         qWarning() << "GPhoto: unable to find camera abilities";
@@ -228,8 +226,9 @@ void GPhotoWorker::updateDevices()
 {
     QMutexLocker locker(&m_mutex);
 
+    QList<QByteArray> paths;
     if (m_cacheAgeTimer.isValid() && deviceCacheLifetime < m_cacheAgeTimer.elapsed()) {
-        m_paths.clear();
+        std::swap(m_paths, paths);
         m_models.clear();
         m_names.clear();
         m_cameras.clear();
@@ -285,6 +284,9 @@ void GPhotoWorker::updateDevices()
         m_paths.append(path);
         m_models.append(model);
         m_names.append(name);
+
+        if (paths.contains(path))
+          initCamera(m_paths.size() - 1);
     }
 
     if (!m_paths.isEmpty()) {
