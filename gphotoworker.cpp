@@ -256,6 +256,11 @@ void GPhotoWorker::updateDevices()
     if (!m_paths.isEmpty() && !cacheIsExpired)
         return;
 
+    m_paths.clear();
+    m_models.clear();
+    m_names.clear();
+    m_defaultCameraName.clear();
+
     CameraList *cameraList;
     gp_list_new(&cameraList);
 
@@ -269,9 +274,9 @@ void GPhotoWorker::updateDevices()
     }
 
     auto cameraCount = gp_list_count(cameraList);
-
-    QVector<QByteArray> paths;
-    paths.reserve(cameraCount);
+    if (cameraCount < 1) {
+        return;
+    }
 
     QMap<QByteArray, int> nameIndexes;
     for (auto i = 0; i < cameraCount; ++i) {
@@ -297,32 +302,19 @@ void GPhotoWorker::updateDevices()
         else
             nameIndexes.insert(name, 0);
 
-        paths.append(path);
-        auto index = m_paths.indexOf(path);
-        if (-1 < index) {
-            if (name != m_names.at(index))
-                m_names[index] = name;
-            continue;
-        }
-
-//        qDebug() << "GPhoto: found" << qPrintable(name) << "at path" << qPrintable(path);
-
         m_paths.append(path);
         m_models.append(model);
         m_names.append(name);
-        initCamera(m_paths.size() - 1);
-    }
 
-    for (auto i = m_paths.size() - 1; 0 <= i; --i) {
-        const auto &path = m_paths.at(i);
-        if (!paths.contains(path)) {
-//            qDebug() << "GPhoto: not found" << qPrintable(m_names.at(i)) << "at path" << qPrintable(path);
-            m_cameras.erase(m_cameras.find(path));
-            m_paths.removeAt(i);
-            m_models.removeAt(i);
-            m_names.removeAt(i);
+        if (m_cameras.cend() == m_cameras.find(path)) {
+//            qDebug() << "GPhoto: found" << qPrintable(name) << "at path" << qPrintable(path);
+            initCamera(m_paths.size() - 1);
         }
     }
+
+    // Delete disconnected cameras
+    for (auto it = m_cameras.cbegin(); it != m_cameras.cend();)
+        it = !m_paths.contains(it->first) ? m_cameras.erase(it) : std::next(it);
 
     if (!m_paths.isEmpty()) {
         m_defaultCameraName = m_names.first();
