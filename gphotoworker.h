@@ -57,6 +57,7 @@ private:
 
     CameraAbilities getCameraAbilities(int cameraIndex, bool *ok = nullptr);
     GPPortInfo getPortInfo(int cameraIndex, bool *ok = nullptr);
+    bool isCameraIndexValid(int index) const;
     void updateDevices();
 
     GPContextPtr m_context;
