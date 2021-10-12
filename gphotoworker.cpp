@@ -77,54 +77,6 @@ QByteArray GPhotoWorker::defaultCameraName()
     return m_defaultCameraName;
 }
 
-void GPhotoWorker::initCamera(int cameraIndex)
-{
-    if (!isCameraIndexValid(cameraIndex))
-        return;
-
-    const auto &path = m_paths.at(cameraIndex);
-    if (path.isEmpty()) {
-        qWarning() << "GPhoto: Unable to init camera with index" << cameraIndex;
-        return;
-    }
-
-    if (m_cameras.cend() != m_cameras.find(path)) {
-        // Already initialized
-        return;
-    }
-
-    auto ok = false;
-
-    const auto &abilities = getCameraAbilities(cameraIndex, &ok);
-    if (!ok) {
-        qWarning() << "GPhoto: Unable to get abilities for camera with index" << cameraIndex;
-        return;
-    }
-
-    const auto &portInfo = getPortInfo(cameraIndex, &ok);
-    if (!ok) {
-        qWarning() << "GPhoto: Unable to get port info for camera with index" << cameraIndex;
-        return;
-    }
-
-    auto camera = new GPhotoCamera(m_context.get(), abilities, portInfo, this);
-
-    using Camera = GPhotoCamera;
-    using Worker = GPhotoWorker;
-    using namespace std::placeholders;
-
-    connect(camera, &Camera::captureModeChanged, camera, std::bind(&Worker::captureModeChanged, this, cameraIndex, _1));
-    connect(camera, &Camera::error, camera, std::bind(&Worker::error, this, cameraIndex, _1, _2));
-    connect(camera, &Camera::imageCaptureError, camera, std::bind(&Worker::imageCaptureError, this, cameraIndex, _1, _2, _3));
-    connect(camera, &Camera::imageCaptured, camera, std::bind(&Worker::imageCaptured, this, cameraIndex, _1, _2, _3, _4));
-    connect(camera, &Camera::previewCaptured, camera, std::bind(&Worker::previewCaptured, this, cameraIndex, _1));
-    connect(camera, &Camera::readyForCaptureChanged, camera, std::bind(&Worker::readyForCaptureChanged, this, cameraIndex, _1));
-    connect(camera, &Camera::stateChanged, camera, std::bind(&Worker::stateChanged, this, cameraIndex, _1));
-    connect(camera, &Camera::statusChanged, camera, std::bind(&Worker::statusChanged, this, cameraIndex, _1));
-
-    m_cameras.emplace(path, camera);
-}
-
 void GPhotoWorker::setState(int cameraIndex, QCamera::State state)
 {
     if (!isCameraIndexValid(cameraIndex))
@@ -306,10 +258,10 @@ void GPhotoWorker::updateDevices()
         m_models.append(model);
         m_names.append(name);
 
-        if (m_cameras.cend() == m_cameras.find(path)) {
+//        if (m_cameras.cend() == m_cameras.find(path))
 //            qDebug() << "GPhoto: found" << qPrintable(name) << "at path" << qPrintable(path);
-            initCamera(m_paths.size() - 1);
-        }
+
+        setupCamera(path);
     }
 
     // Delete disconnected cameras
@@ -320,4 +272,50 @@ void GPhotoWorker::updateDevices()
         m_defaultCameraName = m_names.first();
         m_cacheAgeTimer.restart();
     }
+}
+
+void GPhotoWorker::setupCamera(const QByteArray &path)
+{
+    auto cameraIndex = m_paths.indexOf(path);
+    if (!isCameraIndexValid(cameraIndex)) {
+        qWarning() << "GPhoto: Unable to setup camera with path" << qPrintable(path);
+        return;
+    }
+
+    auto it = m_cameras.find(path);
+    if (m_cameras.cend() != it) {
+        it->second->setIndex(cameraIndex);
+        return;
+    }
+
+    auto ok = false;
+
+    const auto &abilities = getCameraAbilities(cameraIndex, &ok);
+    if (!ok) {
+        qWarning() << "GPhoto: Unable to get abilities for camera with index" << cameraIndex;
+        return;
+    }
+
+    const auto &portInfo = getPortInfo(cameraIndex, &ok);
+    if (!ok) {
+        qWarning() << "GPhoto: Unable to get port info for camera with index" << cameraIndex;
+        return;
+    }
+
+    auto camera = new GPhotoCamera(m_context.get(), abilities, portInfo, cameraIndex, this);
+
+    using Camera = GPhotoCamera;
+    using Worker = GPhotoWorker;
+    using namespace std::placeholders;
+
+    connect(camera, &Camera::captureModeChanged, this, &Worker::captureModeChanged);
+    connect(camera, &Camera::error, this, &Worker::error);
+    connect(camera, &Camera::imageCaptureError, this, &Worker::imageCaptureError);
+    connect(camera, &Camera::imageCaptured, this, &Worker::imageCaptured);
+    connect(camera, &Camera::previewCaptured, this, &Worker::previewCaptured);
+    connect(camera, &Camera::readyForCaptureChanged, this, &Worker::readyForCaptureChanged);
+    connect(camera, &Camera::stateChanged, this, &Worker::stateChanged);
+    connect(camera, &Camera::statusChanged, this, &Worker::statusChanged);
+
+    m_cameras.emplace(path, camera);
 }
